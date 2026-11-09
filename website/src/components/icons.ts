@@ -1,0 +1,163 @@
+// The app imports every icon from here, so the icon set can be swapped in one place. Phosphor icons,
+// re-exported under neutral, semantic names
+export { IconContext } from "@phosphor-icons/react"
+
+export {
+  WarningCircle as Warning,
+  AirplaneTilt as Away,
+  ArrowLeft,
+  ArrowSquareOut,
+  Bell,
+  Buildings as Building,
+  CalendarBlank as Calendar,
+  CalendarDots as CalendarDays,
+  Check,
+  CheckCircle,
+  Circle,
+  CaretDown as ChevronDown,
+  CaretLeft as ChevronLeft,
+  CaretRight as ChevronRight,
+  CaretUp as ChevronUp,
+  Clock,
+  Copy,
+  ArrowsClockwise as Refresh,
+  DownloadSimple as Download,
+  PencilSimple as Pencil,
+  File,
+  FileCode,
+  FileDoc,
+  FilePdf,
+  FilePpt as FileSlides,
+  FileText,
+  FileXls as FileSheet,
+  FileZip as FileArchive,
+  Folder,
+  HandPalm,
+  GridFour as Grid,
+  House,
+  Image,
+  Info,
+  LinkSimple as Link,
+  Lock,
+  ListBullets as List,
+  ListChecks as Checklist,
+  CircleNotch as Spinner,
+  SignOut as LogOut,
+  Envelope as Mail,
+  MapPin,
+  ChatCircle as MessageCircle,
+  Minus,
+  Monitor,
+  Moon,
+  DotsThree as Ellipsis,
+  MusicNotes as Music,
+  Paperclip,
+  Phone,
+  Play,
+  PushPin as Pin,
+  PushPinSlash as PinOff,
+  Plus,
+  Question,
+  Repeat,
+  ArrowBendUpLeft as Reply,
+  NotePencil as Compose,
+  MagnifyingGlass as Search,
+  PaperPlaneTilt as Send,
+  Gear as Settings,
+  ShieldCheck,
+  Smiley as AddReaction,
+  SidebarSimple as SidebarToggle,
+  SquaresFour as Projects,
+  Sun,
+  Sunglasses,
+  Stop,
+  Timer,
+  Trash,
+  TextAlignLeft as TextLeft,
+  User,
+  UserPlus,
+  Users,
+  VideoCamera as Video,
+  X,
+  XCircle,
+} from "@phosphor-icons/react"
+
+// Call screens
+export {
+  ArrowsOutSimple,
+  ChatCircleDots,
+  Microphone,
+  MicrophoneSlash,
+  PhoneDisconnect,
+  PictureInPicture,
+  Screencast,
+  Robot,
+  Sparkle,
+  SquaresFour,
+  UserFocus,
+  UsersThree,
+  VideoCameraSlash,
+  WifiSlash,
+} from "@phosphor-icons/react"
+
+// Files
+export {
+  ArrowCounterClockwise as Restore,
+  ArrowRight,
+  ArrowsDownUp as Sort,
+  ClockCounterClockwise as Recent,
+  CloudArrowUp as DropUpload,
+  Eye,
+  FolderSimplePlus as FolderPlus,
+  FolderSimpleUser as SharedFolder,
+  ShareNetwork as Share,
+  UploadSimple as Upload,
+} from "@phosphor-icons/react"
+
+// Papers and boards
+export {
+  Article as Paper,
+  ArrowUUpLeft as Undo,
+  ArrowUUpRight as Redo,
+  ChalkboardSimple as Board,
+  ChatCenteredText as Comment,
+  CheckSquare,
+  EyeSlash as Hide,
+  NoteBlank as StickyNote,
+  Sticker,
+  ListNumbers,
+  Table,
+  TextB as Bold,
+  TextHOne as HeadingOne,
+  TextHThree as HeadingThree,
+  TextHTwo as HeadingTwo,
+  TextItalic as Italic,
+  TextStrikethrough as Strikethrough,
+  TextUnderline as Underline,
+} from "@phosphor-icons/react"
+
+// Calendar event types, shown with their colors when asked for
+export { CheckFat, Headphones, Star } from "@phosphor-icons/react"
+
+// Chat reactions
+export { Confetti, Fire, Heart, ThumbsUp } from "@phosphor-icons/react"
+
+// Symbols for projects, group chats and folders (Heart, Image and Sparkle are exported above)
+export {
+  Archive,
+  Bug,
+  Butterfly,
+  Cloud,
+  Code,
+  CrownSimple,
+  Flask,
+  Flower,
+  Leaf,
+  Lightning,
+  PaintBrush,
+  Prohibit,
+} from "@phosphor-icons/react"
+
+import type { ComponentType } from "react"
+import type { IconProps } from "@phosphor-icons/react"
+export type IconComponent = ComponentType<IconProps>

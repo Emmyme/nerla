@@ -1,0 +1,61 @@
+# Postgres and Garage, a stand-in server for the local disk and a stand-in web proxy, for scripts/test-backup.sh.
+# No container names and no fixed host ports, so it runs beside a dev stack without clashing
+
+name: nerla-backup-test
+
+services:
+  postgres:
+    image: postgres:15-alpine@sha256:fceb6f86328c36f2438fae3b851b0cc57c4a7e69a58c866d9ce24281f2cf0c9c
+    environment:
+      POSTGRES_USER: ${DB_USER:?}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?}
+      POSTGRES_DB: ${DB_NAME:?}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - target: 5432
+        host_ip: 127.0.0.1
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${DB_USER:?}"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  garage:
+    image: dxflrs/garage:v2.2.0@sha256:45a61ce3f7c9c24fc23d9ed2b09b27ed560ab87b34605d175d5c588f539c24e4
+    volumes:
+      - ${NERLA_TEST_GARAGE_TOML:?}:/etc/garage.toml:ro
+      - garage_meta:/var/lib/garage/meta
+      - garage_data:/var/lib/garage/data
+    ports:
+      - target: 3900
+        host_ip: 127.0.0.1
+    healthcheck:
+      test: ["CMD", "/garage", "-c", "/etc/garage.toml", "status"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # Stands in for the server with STORAGE_DRIVER=local: the files volume, owned by the server's user as in its image
+  server:
+    image: postgres:15-alpine@sha256:fceb6f86328c36f2438fae3b851b0cc57c4a7e69a58c866d9ce24281f2cf0c9c
+    profiles: [local]
+    init: true
+    entrypoint: ["sh", "-c", "chown 1001:1001 /data/files && exec tail -f /dev/null"]
+    volumes:
+      - files:/data/files
+
+  # Stands in for the web proxy: its certificate volume
+  web:
+    image: postgres:15-alpine@sha256:fceb6f86328c36f2438fae3b851b0cc57c4a7e69a58c866d9ce24281f2cf0c9c
+    init: true
+    entrypoint: ["tail", "-f", "/dev/null"]
+    volumes:
+      - caddy_data:/data
+
+volumes:
+  postgres_data:
+  garage_meta:
+  garage_data:
+  files:
+  caddy_data:

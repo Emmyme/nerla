@@ -1,0 +1,308 @@
+/* The paper's text, with Nerla's tokens so it follows light and dark */
+
+.paper-content .ProseMirror {
+  min-height: 12rem;
+  outline: none;
+  color: var(--color-text);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+  /* Room for a caret's name above the first line */
+  padding-top: 1rem;
+  padding-bottom: 6rem;
+}
+
+.paper-content.is-compact .ProseMirror {
+  min-height: 8rem;
+  padding-bottom: 2rem;
+}
+
+.paper-content .ProseMirror > * + * {
+  margin-top: 0.6rem;
+}
+
+.paper-content .ProseMirror h1,
+.paper-content .ProseMirror h2,
+.paper-content .ProseMirror h3 {
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+}
+
+.paper-content .ProseMirror h1 {
+  font-size: 1.625rem;
+  margin-top: 1.6rem;
+}
+
+.paper-content .ProseMirror h2 {
+  font-size: 1.25rem;
+  margin-top: 1.4rem;
+}
+
+.paper-content .ProseMirror h3 {
+  font-size: 1.0625rem;
+  margin-top: 1.2rem;
+}
+
+.paper-content .ProseMirror > :first-child {
+  margin-top: 0;
+}
+
+.paper-content .ProseMirror a {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+/* A linked board's card is a link as a whole, not a word in the text */
+.paper-content .ProseMirror a.paper-board-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.paper-content .ProseMirror ul,
+.paper-content .ProseMirror ol {
+  padding-left: 1.4rem;
+}
+
+.paper-content .ProseMirror ul {
+  list-style: disc;
+}
+
+.paper-content .ProseMirror ol {
+  list-style: decimal;
+}
+
+.paper-content .ProseMirror li + li {
+  margin-top: 0.2rem;
+}
+
+.paper-content .ProseMirror blockquote {
+  margin-left: 0;
+  padding: 0.4rem 0.9rem;
+  border-radius: 0.5rem;
+  background: var(--color-sunk);
+  color: var(--color-text-muted);
+}
+
+.paper-content .ProseMirror code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  padding: 0.1em 0.3em;
+  border-radius: 0.25rem;
+  background: var(--color-sunk);
+}
+
+.paper-content .ProseMirror pre {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: var(--color-sunk);
+  overflow-x: auto;
+}
+
+.paper-content .ProseMirror pre code {
+  padding: 0;
+  background: none;
+}
+
+.paper-content .ProseMirror hr {
+  border: none;
+  height: 0.0625rem;
+  background: var(--color-border);
+  margin: 1.2rem 0;
+}
+
+/* Checklists */
+
+.paper-content .ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.paper-content .paper-task {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  border-radius: 0.375rem;
+}
+
+.paper-content .paper-task-box {
+  display: flex;
+  flex-shrink: 0;
+  height: 1.65em;
+  align-items: center;
+}
+
+.paper-content .paper-task-box input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--color-sky-strong);
+  cursor: pointer;
+}
+
+.paper-content .paper-task-box input:disabled {
+  cursor: default;
+}
+
+.paper-content .paper-task-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.paper-content .paper-task[data-checked="true"] > .paper-task-body > [data-node-view-content-react] > p {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+.paper-content .paper-task-side {
+  display: flex;
+  flex-shrink: 0;
+  min-height: 1.65em;
+  align-items: center;
+}
+
+.paper-content .paper-task-make {
+  opacity: 0;
+}
+
+.paper-content .paper-task:hover > .paper-task-side .paper-task-make,
+.paper-content .paper-task.is-current > .paper-task-side .paper-task-make,
+.paper-content .paper-task-make:focus-visible {
+  opacity: 1;
+}
+
+@media (pointer: coarse) {
+  .paper-content .paper-task.is-current > .paper-task-side .paper-task-make {
+    opacity: 1;
+  }
+}
+
+/* Tables */
+
+.paper-content .ProseMirror .tableWrapper {
+  overflow-x: auto;
+  margin: 0.8rem 0;
+}
+
+.paper-content .ProseMirror table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  overflow: hidden;
+}
+
+.paper-content .ProseMirror td,
+.paper-content .ProseMirror th {
+  position: relative;
+  min-width: 4rem;
+  padding: 0.35rem 0.6rem;
+  border: 0.0625rem solid var(--color-border);
+  vertical-align: top;
+  text-align: left;
+}
+
+.paper-content .ProseMirror th {
+  background: var(--color-sunk);
+  font-weight: 600;
+}
+
+.paper-content .ProseMirror td > * + *,
+.paper-content .ProseMirror th > * + * {
+  margin-top: 0.3rem;
+}
+
+.paper-content .ProseMirror .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--color-sky) 35%, transparent);
+  pointer-events: none;
+}
+
+/* Placeholder on the empty line */
+
+.paper-content .ProseMirror p.is-empty::before,
+.paper-content .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--color-text-muted);
+}
+
+/* Selected blocks */
+
+.paper-content .ProseMirror-selectednode {
+  outline: none;
+}
+
+.paper-content .ProseMirror ::selection {
+  background: color-mix(in srgb, var(--color-sky-strong) 35%, transparent);
+}
+
+/* Find */
+
+.paper-content .paper-find-match {
+  border-radius: 0.125rem;
+  background: color-mix(in srgb, var(--color-lemon-strong) 45%, transparent);
+}
+
+.paper-content .paper-find-match.is-current {
+  background: var(--color-lemon-strong);
+  color: var(--color-lemon-ink);
+}
+
+/* Other users' carets, a thin line in their color with their name above it */
+
+.collaboration-carets__caret {
+  position: relative;
+  margin: 0 -0.0625rem;
+  border-inline: 0.0625rem solid var(--caret-color);
+  pointer-events: none;
+  word-break: normal;
+}
+
+.collaboration-carets__label {
+  position: absolute;
+  bottom: 100%;
+  left: -0.0625rem;
+  padding: 0.0625rem 0.3rem;
+  border-radius: 0.25rem 0.25rem 0.25rem 0;
+  background: var(--caret-color);
+  color: var(--color-sky-ink);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.collaboration-carets__selection {
+  border-radius: 0.125rem;
+}
+
+/* Words with a comment on them. A decoration on this screen only, never part of the paper */
+.paper-content .paper-comment {
+  border-radius: 0.125rem;
+  background: var(--color-sky-soft);
+  box-shadow: 0 0.0625rem 0 var(--color-sky-strong);
+  cursor: pointer;
+}
+
+.paper-content .paper-comment.is-active,
+.paper-content .paper-comment.is-pending {
+  background: var(--color-sky);
+  color: var(--color-sky-ink);
+}
+
+/* Larger text in Settings: the paper and its code a step up, like the rest of Nerla */
+[data-text="larger"] .paper-content .ProseMirror {
+  font-size: 1rem;
+}
+
+[data-text="larger"] .paper-content .ProseMirror pre {
+  font-size: 0.875rem;
+}

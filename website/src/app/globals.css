@@ -1,0 +1,752 @@
+@import "tailwindcss";
+@import "./nerla-themes.css";
+
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:is(.dark *));
+
+/* The root's data-motion holds still when the device asks or the user turned animations off (src/lib/accessibility.ts) */
+@custom-variant motion-safe (&:where(:root:not([data-motion="reduce"]) *));
+@custom-variant motion-reduce (&:where(:root[data-motion="reduce"] *));
+@custom-variant contrast-more (&:where(:root[data-contrast="more"] *));
+
+/* Map Nerla tokens -> variables used across the app + shadcn. Not tied to html, so a themed subtree such as the dark call stage maps them too */
+[data-theme][data-mode] {
+  --background: var(--color-bg);
+  --foreground: var(--color-text);
+  --card: var(--color-surface);
+  --card-foreground: var(--color-text);
+  --popover: var(--color-surface-solid);
+  --popover-foreground: var(--color-text);
+  --muted: var(--color-surface-raised);
+  --muted-foreground: var(--color-text-muted);
+  --border: var(--color-border);
+  --input: var(--color-input);
+  --ring: var(--color-text);
+  --primary: var(--color-accent);
+  --primary-foreground: var(--color-text-on-accent);
+  --secondary: var(--color-surface-raised);
+  --secondary-foreground: var(--color-text);
+  --accent: var(--color-accent);
+  --accent-foreground: var(--color-text-on-accent);
+  --destructive: var(--color-berry-text);
+  --sidebar: var(--color-surface);
+  --sidebar-foreground: var(--color-text);
+  --sidebar-primary: var(--color-accent);
+  --sidebar-primary-foreground: var(--color-text-on-accent);
+  --sidebar-accent: var(--color-accent-subtle);
+  --sidebar-accent-foreground: var(--color-text);
+  --sidebar-border: var(--color-border);
+  --sidebar-ring: var(--color-text);
+}
+
+:root {
+  --radius: 0.5rem;
+  --tabbar-h: 3.5rem;
+  --titlebar-h: 0rem;
+  --destructive-foreground: var(--color-surface);
+  --success: var(--color-status-done);
+  --warning: var(--color-lemon);
+  --error: var(--color-berry-text);
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-soft: cubic-bezier(0.4, 0, 1, 1);
+  --dur-panel: 220ms;
+  --dur-panel-exit: 160ms;
+  --dur-collapse: 200ms;
+  --dur-collapse-exit: 160ms;
+  --dur-fade: 150ms;
+}
+
+:root[data-motion="reduce"] {
+  --dur-panel: 150ms;
+  --dur-panel-exit: 120ms;
+}
+
+@theme inline {
+  --color-app-bg: var(--color-bg);
+  --color-app-surface: var(--color-surface);
+  --color-app-surface-raised: var(--color-surface-raised);
+  --color-app-sunk: var(--color-sunk);
+  --color-app-hover: var(--color-hover);
+  --color-app-scrim: var(--color-scrim);
+  --color-app-pistachio-ink: var(--color-pistachio-ink);
+  --color-app-bubblegum-ink: var(--color-bubblegum-ink);
+  --color-app-sky-ink: var(--color-sky-ink);
+  --color-app-lavender-ink: var(--color-lavender-ink);
+  --color-app-lemon-ink: var(--color-lemon-ink);
+  --color-app-pistachio: var(--color-pistachio);
+  --color-app-pistachio-soft: var(--color-pistachio-soft);
+  --color-app-bubblegum: var(--color-bubblegum);
+  --color-app-bubblegum-soft: var(--color-bubblegum-soft);
+  --color-app-sky: var(--color-sky);
+  --color-app-sky-soft: var(--color-sky-soft);
+  --color-app-lavender: var(--color-lavender);
+  --color-app-lavender-soft: var(--color-lavender-soft);
+  --color-app-lemon: var(--color-lemon);
+  --color-app-lemon-soft: var(--color-lemon-soft);
+  --color-app-pistachio-strong: var(--color-pistachio-strong);
+  --color-app-sky-strong: var(--color-sky-strong);
+  --color-app-lemon-strong: var(--color-lemon-strong);
+  --color-app-lavender-strong: var(--color-lavender-strong);
+  --color-app-bubblegum-strong: var(--color-bubblegum-strong);
+  --color-app-selected: var(--color-selected);
+  --color-app-priority-off: var(--color-priority-off);
+  --color-app-berry: var(--color-berry);
+  --color-app-berry-text: var(--color-berry-text);
+  --color-app-unread: var(--color-unread);
+  --color-app-join: var(--color-join);
+  --color-app-status-backlog: var(--color-status-backlog);
+  --color-app-status-todo: var(--color-status-todo);
+  --color-app-status-progress: var(--color-status-progress);
+  --color-app-status-done: var(--color-status-done);
+  --color-app-col-backlog: var(--color-col-backlog);
+  --color-app-col-todo: var(--color-col-todo);
+  --color-app-col-progress: var(--color-col-progress);
+  --color-app-col-done: var(--color-col-done);
+  --color-app-border: var(--color-border);
+  --color-app-accent: var(--color-accent);
+  --color-app-accent-hover: var(--color-accent-hover);
+  --color-app-accent-subtle: var(--color-accent-subtle);
+  --color-app-accent-text: var(--color-accent-text);
+  --color-app-text: var(--color-text);
+  --color-app-text-muted: var(--color-text-muted);
+  --color-app-on-accent: var(--color-text-on-accent);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-mono);
+  --font-display: var(--font-display);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-xs: 0.1875rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+}
+
+/* Not inline, so easier reading can open up the line heights of running text */
+@theme {
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 1rem;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+  --text-ui: 0.8125rem;
+  --text-ui--line-height: 1.25rem;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.25rem;
+  --text-lead: 1rem;
+  --text-lead--line-height: 1.5rem;
+  --text-title: 1.25rem;
+  --text-title--line-height: 1.75rem;
+  --text-page: 1.5rem;
+  --text-page--line-height: 2rem;
+}
+
+@layer utilities {
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .font-display {
+    font-family: var(--font-display), system-ui, sans-serif;
+    letter-spacing: -0.02em;
+  }
+
+  .modal-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.75rem;
+    color: var(--color-text);
+  }
+
+  .form-label {
+    display: flex;
+    align-items: center;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    margin-bottom: 0.375rem;
+  }
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 0.5rem;
+  height: 0.5rem;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 0.25rem;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* The current page: the pistachio soft with 30% of the pastel in light, the neutral selected fill in dark */
+@utility bg-current-page {
+  background-color: color-mix(in srgb, var(--color-pistachio) 30%, var(--color-pistachio-soft));
+  &:where([data-mode="dark"] *) {
+    background-color: var(--color-selected);
+  }
+}
+
+@utility pb-tabbar {
+  padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+}
+
+@utility bottom-above-tabbar {
+  bottom: calc(var(--tabbar-h) + 1rem + env(safe-area-inset-bottom));
+}
+
+@utility h-titlebar {
+  height: var(--titlebar-h);
+}
+
+@utility top-titlebar {
+  top: var(--titlebar-h);
+}
+
+@utility top-below-titlebar {
+  top: calc(var(--titlebar-h) + 1rem);
+}
+
+/* Pins a sticky bar to the bottom edge of the shell's main, past its bottom padding */
+@utility bottom-flush {
+  bottom: -1rem;
+  @media (width >= 64rem) {
+    bottom: calc(-1 * var(--chat-space, 1.5rem));
+  }
+}
+
+@utility pt-auth {
+  padding-top: clamp(2.5rem, 12dvh, 7.5rem);
+}
+
+@utility min-h-window {
+  min-height: calc(100dvh - var(--titlebar-h));
+}
+
+.app-region-drag {
+  -webkit-app-region: drag;
+}
+
+.app-region-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+@layer base {
+  html {
+    font-size: 1rem;
+    overscroll-behavior: none;
+    accent-color: var(--color-accent-text);
+  }
+  html[data-mode="light"] {
+    color-scheme: light;
+  }
+  html[data-mode="dark"] {
+    color-scheme: dark;
+  }
+  * {
+    @apply border-border outline-ring;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+    transition:
+      background-color 0.15s ease,
+      color 0.15s ease,
+      box-shadow 0.15s ease,
+      opacity 0.15s ease;
+  }
+  body {
+    @apply bg-background text-foreground;
+    overscroll-behavior: none;
+    /* Self-hosted font families (see src/fonts.ts). Declared on body, not :root, so the
+       --font-mono: var(--font-mono) mapping in the @theme block stays non-circular */
+    --font-body: "Figtree", system-ui, sans-serif;
+    --font-display: "Figtree", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, monospace;
+    font-family: var(--font-body), system-ui, sans-serif;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Selected text takes the sky fill and its ink in both modes, never the browser's blue */
+  ::selection {
+    background-color: var(--color-sky);
+    color: var(--color-sky-ink);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display), system-ui, sans-serif;
+    letter-spacing: -0.02em;
+  }
+
+  h1 {
+    font-weight: 700;
+    letter-spacing: -0.03em;
+  }
+
+  h2 {
+    font-weight: 600;
+    letter-spacing: -0.025em;
+  }
+
+  input[type="date"] {
+    position: relative;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+  }
+
+  input[type="date"]::before {
+    content: attr(placeholder);
+    position: absolute;
+    color: var(--color-text-muted);
+    pointer-events: none;
+    opacity: 0.5;
+  }
+
+  input[type="date"]:focus::before,
+  input[type="date"]:valid::before {
+    display: none;
+  }
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    scale: 0.97;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes modal-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-content-in {
+  animation: modal-in 150ms ease-out;
+}
+
+[data-motion="reduce"] .modal-content-in {
+  animation: modal-fade 150ms ease-out;
+}
+
+@keyframes modal-out {
+  from {
+    opacity: 1;
+    scale: 1;
+  }
+  to {
+    opacity: 0;
+    scale: 0.97;
+  }
+}
+
+.modal-content-in[data-state="closed"] {
+  animation: modal-out var(--dur-panel-exit) var(--ease-in-soft) forwards;
+}
+
+[data-motion="reduce"] .modal-content-in[data-state="closed"] {
+  animation: modal-fade var(--dur-panel-exit) var(--ease-in-soft) reverse forwards;
+}
+
+/*
+ * Motion. Unlayered, so these timings win over the duration utilities and the 150ms default of animate-in.
+ * Under reduced motion nothing moves or changes size, and only opacity fades.
+ */
+
+/* Sheets, drawers and panels that animate in and out with tailwindcss-animate */
+.motion-panel {
+  animation-duration: var(--dur-panel);
+  animation-timing-function: var(--ease-out-soft);
+}
+
+.motion-panel[data-state="closed"] {
+  animation-duration: var(--dur-panel-exit);
+  animation-timing-function: var(--ease-in-soft);
+  animation-fill-mode: forwards;
+}
+
+/* A height that opens from nothing, through grid rows so it needs no measuring */
+.motion-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition-property: grid-template-rows, opacity;
+  transition-duration: var(--dur-collapse-exit);
+  transition-timing-function: var(--ease-out-soft);
+}
+
+.motion-collapse[data-open] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition-duration: var(--dur-collapse);
+}
+
+.motion-collapse[hidden] {
+  display: none;
+}
+
+.motion-collapse > * {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.motion-collapse[data-settled] > * {
+  overflow: visible;
+}
+
+/* A width or height that eases between two sizes, such as the sidebar rail or a side column */
+.motion-size {
+  transition-property: width, height, opacity;
+  transition-duration: var(--dur-panel-exit);
+  transition-timing-function: var(--ease-out-soft);
+}
+
+.motion-size[data-open] {
+  transition-duration: var(--dur-panel);
+}
+
+/* Labels and marks that fade as their space opens or closes */
+.motion-fade {
+  transition: opacity var(--dur-fade) var(--ease-out-soft);
+}
+
+.motion-rotate {
+  transition-property: transform, rotate;
+  transition-duration: var(--dur-collapse);
+  transition-timing-function: var(--ease-out-soft);
+}
+
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    scale: 0.96;
+  }
+}
+
+/* A docked chat window folded to its title chip */
+.motion-chip-in {
+  animation: chip-in var(--dur-panel) var(--ease-out-soft);
+  transform-origin: bottom right;
+}
+
+/* The z of an away presence cat, drifting up and fading. The units are the badge's own SVG units. */
+@keyframes presence-z {
+  0% {
+    opacity: 0;
+    transform: translate(var(--z-x), var(--z-y)) scale(var(--z-s));
+  }
+  15%,
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--z-x) + 10px), calc(var(--z-y) - 14px)) scale(calc(var(--z-s) * 0.64));
+  }
+}
+
+/* The AI's cat while one of the user's requests runs */
+@keyframes ai-bob {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+/* One of three typing dots, rising and brightening in turn. Without motion the dots simply stay */
+@keyframes typing-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.45;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-0.125rem);
+  }
+}
+
+/* A motion line beside the AI's cat while it works, sliding back and fading */
+@keyframes ai-line {
+  0%,
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  50% {
+    opacity: 0.4;
+    transform: translateX(-0.125rem);
+  }
+}
+
+@keyframes flash-fade {
+  from,
+  40% {
+    background-color: var(--color-sky-soft);
+  }
+}
+
+/* Sleeping z's rest fully visible and drift only when the user allows it, never with animations off. Every z rises from the lower z's spot past the upper one's, half a cycle apart, so two z's keep the gap they have at rest */
+:root[data-zs="moving"][data-motion="full"] .sleep-z {
+  --z-x: 0px;
+  --z-y: 0px;
+  --z-s: 1;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation-name: presence-z;
+  animation-duration: 3s;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+:root[data-zs="moving"][data-motion="full"] .sleep-z-upper {
+  --z-x: -5px;
+  --z-y: 7px;
+  --z-s: 1.25;
+  animation-delay: -1.5s;
+}
+
+/* A message reached from a pin or a reply, filled for a moment and fading back */
+.motion-flash {
+  animation: flash-fade 1.5s var(--ease-out-soft);
+}
+
+/* Animations turned off in Nerla stop fades and transitions too, only spinners keep turning */
+:root[data-still] *:not(.animate-spin),
+:root[data-still] *::before,
+:root[data-still] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+[data-motion="reduce"] {
+  .motion-flash {
+    animation: none;
+    background-color: var(--color-sky-soft);
+  }
+  /* Loading placeholders hold still, spinners keep turning so waiting still shows */
+  .animate-pulse {
+    animation: none;
+  }
+  .motion-collapse {
+    transition-property: opacity;
+  }
+  .motion-size {
+    transition-property: opacity;
+  }
+  .motion-rotate {
+    transition-property: none;
+  }
+  .motion-chip-in {
+    animation-name: modal-fade;
+  }
+  /* Toasts hold still as sonner's own reduced motion rule has them do */
+  .sonner-loading-bar,
+  [data-sonner-toast],
+  [data-sonner-toast] > * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* An open dialog turns off clicks on everything behind it, toasts are the exception */
+[data-sonner-toast] {
+  pointer-events: auto;
+}
+
+/* Alt+T brings the keyboard to the toasts, so they show focus like every other control */
+[data-sonner-toast]:focus-visible,
+[data-sonner-toaster] [data-sonner-toast] button:focus-visible {
+  outline: 0.125rem solid var(--color-ring);
+  outline-offset: 0.125rem;
+}
+
+/* Larger text: the small sizes each go up one step and headings stay. Before easier reading, whose line heights win */
+:root[data-text="larger"] {
+  --text-micro: 0.75rem;
+  --text-micro--line-height: 1rem;
+  --text-caption: 0.8125rem;
+  --text-caption--line-height: 1.125rem;
+  --text-ui: 0.875rem;
+  --text-ui--line-height: 1.25rem;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.375rem;
+}
+
+[data-text="larger"] .form-label {
+  font-size: var(--text-ui);
+}
+
+/* Easier reading: Atkinson Hyperlegible (src/fonts.ts) with the text spacing of WCAG 1.4.12. Its 400 and 700 cover every weight */
+:root[data-reading="easier"] {
+  --text-micro--line-height: 1.5;
+  --text-caption--line-height: 1.5;
+  --text-body--line-height: 1.5;
+}
+
+:root[data-reading="easier"] body {
+  --font-body: "Atkinson Hyperlegible", system-ui, sans-serif;
+  --font-display: "Atkinson Hyperlegible", system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  word-spacing: 0.14em;
+}
+
+[data-reading="easier"] :is(button, input, select, textarea) {
+  word-spacing: inherit;
+}
+
+/* Descriptions and notes set their own leading just under 1.5 */
+[data-reading="easier"] :is(.leading-\[1\.4\], .leading-\[1\.45\]) {
+  line-height: 1.5;
+}
+
+/* Headings drop their tight tracking, Atkinson is wide enough without more */
+[data-reading="easier"] :is(h1, h2, h3, h4, .font-display, .modal-title) {
+  letter-spacing: 0;
+}
+
+/* More contrast: a pastel chip, badge or selected fill carries an ink edge, so it never rests on the pastel alone */
+[data-contrast="more"]
+  :is(
+    .bg-app-sky,
+    .bg-app-sky-soft,
+    .bg-app-pistachio,
+    .bg-app-pistachio-soft,
+    .bg-app-bubblegum,
+    .bg-app-bubblegum-soft,
+    .bg-app-lavender,
+    .bg-app-lavender-soft,
+    .bg-app-lemon,
+    .bg-app-lemon-soft,
+    .bg-app-selected,
+    .bg-current-page
+  ):not([aria-hidden="true"], :focus-visible, [data-range]) {
+  outline: 0.0625rem solid var(--color-text);
+  outline-offset: -0.0625rem;
+}
+
+/* Windows high contrast: box-shadow rings and fills vanish, so focus, selection and drawn controls take system colours */
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 0.125rem solid Highlight;
+    outline-offset: 0.125rem;
+  }
+
+  :is(
+    .bg-app-selected,
+    .bg-current-page,
+    [aria-current="page"],
+    [role="radio"][aria-checked="true"],
+    [role="tab"][aria-selected="true"],
+    [role="option"][aria-selected="true"],
+    [data-state="on"]
+  ):not(:focus-visible, [data-range]) {
+    outline: 0.125rem solid Highlight;
+    outline-offset: -0.125rem;
+  }
+
+  /* A native box hidden for a drawn one */
+  :is(input[type="checkbox"], input[type="radio"]).sr-only + span[aria-hidden="true"] {
+    outline: 0.0625rem solid CanvasText;
+  }
+
+  :is(input[type="checkbox"], input[type="radio"]).sr-only + span[aria-hidden="true"] svg {
+    color: CanvasText;
+  }
+
+  /* Today, an "on" chip or an avatar in the sky pastel keeps its shape. A filled button has its own edge */
+  .bg-app-sky:not(:focus-visible, .forced-colors\:border) {
+    outline: 0.0625rem solid CanvasText;
+    outline-offset: -0.0625rem;
+  }
+
+  /* Calendar blocks are a fill and a ring */
+  [data-event-key] {
+    outline: 0.0625rem solid CanvasText;
+    outline-offset: -0.0625rem;
+  }
+
+  [role="switch"] {
+    forced-color-adjust: none;
+    background: Canvas;
+    outline: 0.0625rem solid CanvasText;
+  }
+
+  [role="switch"][aria-checked="true"] {
+    background: Highlight;
+  }
+
+  [role="switch"] > span {
+    background: CanvasText;
+  }
+
+  [role="switch"][aria-checked="true"] > span {
+    background: HighlightText;
+  }
+
+  [role="switch"]:focus-visible {
+    outline: 0.125rem solid Highlight;
+  }
+}

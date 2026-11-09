@@ -1,0 +1,16 @@
+#!/bin/sh
+# Checks the first line of a commit message. The release notes read the same types.
+
+types='feat|fix|docs|test|ci|style|refactor|perf|build|chore|revert'
+subject=$(grep -v '^#' "$1" | head -n 1)
+
+extra=
+[ -z "$NERLA_CI" ] && extra='|(fixup|squash)! .+'
+ok='^(('"$types"')(\([a-z0-9._/-]+\))?!?: [^ ].*|Merge (branch|pull request|remote-tracking branch|tag) .*|Revert ".*"'"$extra"')$'
+
+if printf '%s\n' "$subject" | grep -Eq "$ok"; then
+  exit 0
+fi
+
+echo "Commit subjects look like \"fix: one plain sentence\". The types are feat, fix, docs, test, ci, style, refactor, perf, build, chore and revert. See CONTRIBUTING.md."
+exit 1

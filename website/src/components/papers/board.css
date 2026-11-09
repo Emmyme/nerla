@@ -1,0 +1,153 @@
+/* Excalidraw in Nerla's palette. Its own variables are set on .excalidraw, so these sit one level more specific */
+.nerla-board {
+  position: relative;
+  min-height: 0;
+  background: var(--color-bg);
+}
+
+.nerla-board .excalidraw,
+.nerla-board .excalidraw.theme--dark {
+  --ui-font: var(--font-body);
+  --color-primary: var(--color-status-todo);
+  --color-primary-darker: var(--color-unread);
+  --color-primary-darkest: var(--color-unread);
+  --color-primary-hover: var(--color-unread);
+  --color-primary-light: var(--color-sky-soft);
+  --color-primary-light-darker: var(--color-sky);
+  --color-surface-primary-container: var(--color-sky);
+  --color-on-primary-container: var(--color-sky-ink);
+  --color-selection: var(--color-status-todo);
+  --color-brand-hover: var(--color-unread);
+  --color-brand-active: var(--color-unread);
+  --island-bg-color: var(--color-surface);
+  --popup-bg-color: var(--color-surface);
+  --sidebar-bg-color: var(--color-surface);
+  --default-bg-color: var(--color-bg);
+  --input-bg-color: var(--color-surface);
+  --input-hover-bg-color: var(--color-hover);
+  --color-surface-lowest: var(--color-surface);
+  --color-surface-low: var(--color-sunk);
+  --color-surface-mid: var(--color-sunk);
+  --color-surface-high: var(--color-hover);
+  --color-on-surface: var(--color-text);
+  --text-primary-color: var(--color-text);
+  --icon-fill-color: var(--color-text);
+  --default-border-color: var(--color-border);
+  --sidebar-border-color: var(--color-border);
+  --dialog-border-color: var(--color-border);
+  --overlay-bg-color: var(--color-scrim);
+  --shadow-island: 0 0 0 0.0625rem var(--color-border), var(--shadow-popover);
+  --border-radius-md: 0.5rem;
+  --border-radius-lg: 0.5rem;
+  /* The same sizes as Nerla's own tools beside them and the paper toolbar */
+  --default-button-size: 2.25rem;
+  --default-icon-size: 1.125rem;
+  --lg-button-size: 2.25rem;
+  --lg-icon-size: 1.125rem;
+}
+
+/* A phone gets the touch size Nerla's buttons have there, where Excalidraw would shrink its tools on a narrow screen */
+@media (max-width: 63.98rem) {
+  .nerla-board .excalidraw,
+  .nerla-board .excalidraw.theme--dark {
+    --lg-button-size: 2.75rem;
+    --lg-icon-size: 1.25rem;
+    --default-icon-size: 1.25rem;
+  }
+
+  .nerla-board .excalidraw .App-toolbar-container .ToolIcon__icon {
+    width: var(--lg-button-size);
+    height: var(--lg-button-size);
+  }
+}
+
+/*
+ * In dark mode the canvas stays a light board, so the candy colors keep their brightness. Excalidraw runs its light
+ * theme and only the controls around the canvas take Nerla's dark tokens
+ */
+.nerla-board.is-dark .excalidraw {
+  --popup-text-color: var(--color-text);
+  --popup-secondary-bg-color: var(--color-sunk);
+  --popup-text-inverted-color: var(--color-bg);
+  --input-label-color: var(--color-text);
+  --input-border-color: var(--color-border);
+  --keybinding-color: var(--color-text-muted);
+  --link-color: var(--color-accent-text);
+  --list-border-color: var(--color-border);
+  --button-gray-1: var(--color-hover);
+  --button-gray-2: var(--color-sunk);
+  --button-gray-3: var(--color-sunk);
+  --button-hover-bg: var(--color-hover);
+  --button-bg: var(--color-surface);
+  --color-disabled: var(--color-text-muted);
+  --color-muted: var(--color-text-muted);
+  --color-muted-darker: var(--color-text-muted);
+  --color-muted-darkest: var(--color-text);
+  --color-muted-background: var(--color-sunk);
+  --scrollbar-thumb: var(--color-border);
+  --scrollbar-thumb-hover: var(--color-input);
+  --avatar-border-color: var(--color-surface);
+  color-scheme: dark;
+}
+
+/* Hints sit on the light canvas, so they take the light muted text whatever the mode */
+.nerla-board.is-dark .excalidraw .HintViewer {
+  color: var(--board-hint);
+}
+
+.nerla-board .excalidraw .ToolIcon__icon,
+.nerla-board .excalidraw .dropdown-menu-item {
+  font-weight: 500;
+}
+
+/* Boards use three type families: hand drawn, normal and code */
+.nerla-board .excalidraw [data-testid="font-family-code"],
+.nerla-board .excalidraw .dropdown-menu.fonts .dropdown-menu-item:not([value="3"]):not([value="5"]):not([value="6"]) {
+  display: none;
+}
+
+/*
+ * No outside libraries, links, embeds or generating. aiEnabled={false} drops text to diagram and the magic frame, but
+ * Excalidraw still lists Mermaid to Excalidraw under a Generate heading. Mermaid shares the embed's test id
+ */
+.nerla-board .excalidraw .default-sidebar-trigger,
+.nerla-board .excalidraw [data-testid="toolbar-embeddable"],
+.nerla-board .excalidraw [data-testid="toolbar-magicframe"],
+.nerla-board .excalidraw .App-toolbar__extra-tools-dropdown .dropdown-menu-container > div {
+  display: none;
+}
+
+/* A phone moves, zooms, reads, writes sticky notes and adds stickers */
+@media (max-width: 63.98rem) {
+  .nerla-board
+    .excalidraw
+    .ToolIcon:has(
+      :is(
+        [data-testid="toolbar-rectangle"],
+        [data-testid="toolbar-diamond"],
+        [data-testid="toolbar-ellipse"],
+        [data-testid="toolbar-arrow"],
+        [data-testid="toolbar-line"],
+        [data-testid="toolbar-freedraw"],
+        [data-testid="toolbar-eraser"]
+      )
+    ),
+  .nerla-board .excalidraw .App-toolbar__extra-tools-trigger,
+  .nerla-board .excalidraw .App-toolbar__divider,
+  .nerla-board .excalidraw .ToolIcon__lock,
+  .nerla-board .excalidraw .ToolIcon__penMode {
+    display: none;
+  }
+}
+
+.nerla-board-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* The call's panel is narrow, so the tools sit closer together there and every control fits beside the stickers */
+.nerla-board.is-compact .excalidraw .App-toolbar .Stack_horizontal,
+.nerla-board.is-compact .nerla-board-tools {
+  gap: 0.125rem;
+}

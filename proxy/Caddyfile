@@ -1,0 +1,97 @@
+# Nerla's web proxy. It serves the website build, passes the API to the server and meeting signalling to LiveKit,
+# and gets and renews its own certificates. Every setting comes from .env through docker-compose.prod.yml:
+#   SITE_ADDRESS    the domain, an IP address or localhost, or :80 for plain HTTP behind a separate proxy
+#   SIGNAL_ADDRESS  meeting signalling, SITE_ADDRESS:7880 unless set (:7880 behind a separate proxy)
+#   TLS_MODE        acme for Let's Encrypt, or internal for a certificate from this server's own authority
+#   ACME_EMAIL      the email Let's Encrypt may write to, optional
+{
+	{$ACME_EMAIL_OPTION}
+	# Only Let's Encrypt, never a fallback authority
+	acme_ca https://acme-v02.api.letsencrypt.org/directory
+	# A browser sends no server name for an IP address
+	default_sni {$SITE_ADDRESS}
+	skip_install_trust
+	servers {
+		# Your own proxy in front keeps its X-Forwarded-For, so the server can count back TRUST_PROXY hops
+		trusted_proxies static private_ranges
+		protocols h1 h2
+	}
+}
+
+(tls_acme) {
+}
+
+(tls_internal) {
+	tls internal
+}
+
+(headers) {
+	header {
+		X-Frame-Options DENY
+		X-Content-Type-Options nosniff
+		X-XSS-Protection "1; mode=block"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		# 'wasm-unsafe-eval' is for Excalidraw's font subsetting on boards. Inline scripts are forbidden, so anything that runs
+		# before paint is a real file (website/public/theme-init.js). connect-src is the API, its WebSockets and LiveKit on :7880
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' https://{host} wss://{host} wss://{host}:7880; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src blob:"
+	}
+}
+
+{$SITE_ADDRESS} {
+	import tls_{$TLS_MODE:acme}
+	import headers
+	encode zstd gzip
+
+	# Uploads stream through to the server, which enforces MAX_UPLOAD_MB and the workspace caps
+	handle /api/files/upload {
+		request_body {
+			max_size 200MiB
+		}
+		reverse_proxy server:5000
+	}
+
+	@server path /api/* /health* /mcp*
+	handle @server {
+		request_body {
+			max_size 1MiB
+		}
+		reverse_proxy server:5000
+	}
+
+	handle /ws* {
+		@plain not header_regexp Upgrade (?i)^websocket$
+		respond @plain 403
+		reverse_proxy server:5000
+	}
+
+	handle {
+		root * /srv
+		route {
+			# A missing asset or board font is a 404, not the app page, so it fails fast. Other paths are app routes
+			@app {
+				not path /assets/* /excalidraw-assets/*
+				not file
+			}
+			rewrite @app /index.html
+			@asset {
+				path /assets/*
+				file
+			}
+			header @asset Cache-Control "public, max-age=31536000, immutable"
+			# The desktop app leaves the board fonts out of its installer and loads them from here
+			header /excalidraw-assets/* Access-Control-Allow-Origin *
+			# The app page is never cached, so a new version is picked up
+			@page path / /index.html
+			header @page Cache-Control no-store
+			file_server
+		}
+	}
+}
+
+{$SIGNAL_ADDRESS} {
+	import tls_{$TLS_MODE:acme}
+	import headers
+	reverse_proxy livekit:7880
+}

@@ -1,0 +1,178 @@
+#!/bin/sh
+# Checks only what is staged for this commit. Nothing online can block a commit, except a secret TruffleHog finds.
+# Paths come from git -z so spaces and non-ASCII names survive. Long lists go through xargs in batches.
+
+root=$(git rev-parse --show-toplevel) || exit 1
+cd "$root" || exit 1
+
+bin=./node_modules/.bin
+batch=100
+trufflehog_image=ghcr.io/trufflesecurity/trufflehog:3.99.7@sha256:0d003fc3abc4e1565eca8462b992001314de51451e96e3c44de80d116794d5d1
+
+work=$(mktemp -d "${TMPDIR:-/tmp}/nerla-hook.XXXXXX") || exit 1
+trap 'rm -rf "$work"' EXIT
+trap 'exit 1' HUP INT TERM
+
+skip() {
+  echo "⚠ $1 not found, $2 skipped here. CI runs it on every PR."
+  [ -z "$3" ] || echo "  $3"
+}
+
+# Runs a command over every path listed in a file, a batch at a time
+each() {
+  list=$1
+  shift
+  [ -s "$list" ] || return 0
+  tr '\n' '\0' <"$list" | xargs -0 -n "$batch" "$@"
+}
+
+git diff --cached --name-only -z --diff-filter=ACMR | tr '\0' '\n' >"$work/staged"
+if [ ! -s "$work/staged" ]; then
+  echo "Nothing staged to check."
+  exit 0
+fi
+git diff --name-only -z | tr '\0' '\n' >"$work/unstaged"
+
+echo "Running pre-commit checks on $(wc -l <"$work/staged" | tr -d ' ') staged files..."
+
+# 1. Prettier formats fully staged files and refuses partly staged ones it would change
+if [ -x "$bin/prettier" ]; then
+  echo "-> Prettier..."
+  grep -vxF -f "$work/unstaged" "$work/staged" >"$work/full.all" || true
+  : >"$work/full"
+  while IFS= read -r f; do
+    [ -f "$f" ] && printf '%s\n' "$f" >>"$work/full"
+  done <"$work/full.all"
+  if ! each "$work/full" "$bin/prettier" --write --ignore-unknown --log-level warn; then
+    echo "✗ Prettier could not format the files above. Fix them, then commit again."
+    exit 1
+  fi
+  each "$work/full" git add -- || exit 1
+
+  refused=0
+  grep -xF -f "$work/unstaged" "$work/staged" >"$work/partial" || true
+  while IFS= read -r f; do
+    git show ":$f" | "$bin/prettier" --check --ignore-unknown --stdin-filepath "$f" >"$work/prettier.log" 2>&1
+    case $? in
+      0) ;;
+      1)
+        echo "✗ $f has unstaged changes and needs formatting. Run yarn format, then stage it."
+        refused=1
+        ;;
+      *)
+        cat "$work/prettier.log"
+        echo "✗ Prettier could not read the staged $f. Fix it, then commit again."
+        refused=1
+        ;;
+    esac
+  done <"$work/partial"
+  [ "$refused" -eq 0 ] || exit 1
+else
+  skip prettier formatting "Run yarn install to get it."
+fi
+
+# 2. ESLint on staged scripts
+grep -E '\.(js|jsx|mjs|cjs|ts|tsx|mts|cts)$' "$work/staged" >"$work/scripts.all" || true
+: >"$work/scripts"
+while IFS= read -r f; do
+  [ -f "$f" ] && printf '%s\n' "$f" >>"$work/scripts"
+done <"$work/scripts.all"
+if [ -s "$work/scripts" ]; then
+  if [ -x "$bin/eslint" ]; then
+    echo "-> ESLint..."
+    if ! each "$work/scripts" "$bin/eslint" --max-warnings 0 --no-warn-ignored; then
+      echo "✗ ESLint found problems. Fix them, then commit again."
+      exit 1
+    fi
+  else
+    skip eslint linting "Run yarn install to get it."
+  fi
+fi
+
+# 3. Typecheck each workspace that has staged code, with the configs its typecheck script uses
+for config in server/tsconfig.json server/tsconfig.test.json website/tsconfig.json e2e/tsconfig.json; do
+  workspace=${config%%/*}
+  grep -Eq "^$workspace/.*\.(js|jsx|mjs|cjs|ts|tsx|mts|cts|json)$" "$work/staged" || continue
+  if [ -x "$bin/tsc" ]; then
+    echo "-> TypeScript ($config)..."
+    if ! "$bin/tsc" --noEmit --incremental --tsBuildInfoFile "node_modules/.cache/nerla-hook/$(echo "$config" | tr / -).tsbuildinfo" \
+      --project "$config"; then
+      echo "✗ The $workspace typecheck failed. Fix the errors, then commit again."
+      exit 1
+    fi
+  else
+    skip tsc "the $workspace typecheck" "Run yarn install to get it."
+  fi
+done
+
+# The scanners read a copy of the staged content, so unstaged edits never count
+snap="$work/staged-copy"
+mkdir "$snap" || exit 1
+snap_host=$(cd "$snap" && { pwd -W 2>/dev/null || pwd; })
+tr '\n' '\0' <"$work/staged" | git checkout-index -z --stdin --prefix="$snap_host/" || exit 1
+[ -f "$snap/.semgrepignore" ] || cp .semgrepignore "$snap/" 2>/dev/null || : >"$snap/.semgrepignore"
+
+# 4. TruffleHog on the staged content, pinned by version and digest
+if ! command -v docker >/dev/null 2>&1; then
+  skip docker "TruffleHog secret scan"
+elif ! docker info >/dev/null 2>&1; then
+  echo "⚠ docker not running, TruffleHog secret scan skipped here. CI runs it on every PR."
+elif ! docker image inspect "$trufflehog_image" >/dev/null 2>&1 &&
+  ! { echo "-> Pulling the TruffleHog image once..." && docker pull -q "$trufflehog_image" >/dev/null 2>&1; }; then
+  echo "⚠ TruffleHog image not found and could not be pulled, secret scan skipped here. CI runs it on every PR."
+else
+  echo "-> Secret scan (TruffleHog)..."
+  MSYS_NO_PATHCONV=1 docker run --rm -v "$snap_host:/scan:ro" "$trufflehog_image" \
+    filesystem /scan --results=verified,unknown --fail --no-update >"$work/trufflehog.log" 2>&1
+  case $? in
+    0) ;;
+    183)
+      cat "$work/trufflehog.log"
+      echo "✗ TruffleHog found a secret that is live or could not be checked. Remove it and rotate it, then commit again."
+      echo "  If it is a false alarm, add a trufflehog:ignore comment on that line."
+      exit 1
+      ;;
+    *)
+      cat "$work/trufflehog.log"
+      echo "⚠ TruffleHog could not finish, secret scan skipped here. CI runs it on every PR."
+      ;;
+  esac
+fi
+
+# 5. Semgrep with Nerla's own rules, which needs no network
+if command -v semgrep >/dev/null 2>&1; then
+  echo "-> Semgrep..."
+  # A config beside the copy keeps rule ids short, as nosemgrep comments name them
+  cp .semgrep/nerla.yml "$work/nerla.yml" || exit 1
+  if ! (cd "$snap" && semgrep scan --config ../nerla.yml --metrics off --disable-version-check --error .) >"$work/semgrep.log" 2>&1; then
+    cat "$work/semgrep.log"
+    echo "✗ Semgrep found issues, or could not read its rules or a file. Fix what it reports above, then commit again."
+    exit 1
+  fi
+else
+  skip semgrep "Semgrep scan"
+fi
+
+# 6. Rust formatting
+if grep -q '\.rs$' "$work/staged"; then
+  if command -v cargo >/dev/null 2>&1 && cargo fmt --version >/dev/null 2>&1; then
+    echo "-> cargo fmt..."
+    if ! cargo fmt --check --manifest-path desktop/src-tauri/Cargo.toml; then
+      echo "✗ Rust files need formatting. Run cargo fmt in desktop/src-tauri, then stage them."
+      exit 1
+    fi
+  else
+    skip "cargo fmt" "Rust format check"
+  fi
+fi
+
+# 7. Dependency audit, only when dependencies change, and it only warns
+if command -v yarn >/dev/null 2>&1 && grep -Eq '(^|/)(yarn\.lock|package\.json)$' "$work/staged"; then
+  echo "-> Dependency audit (yarn npm audit)..."
+  if ! yarn npm audit --all --severity high; then
+    echo "⚠ High or critical dependency advisories above, or the audit could not run."
+    echo "  Review them with yarn npm audit --all. This does not block the commit."
+  fi
+fi
+
+echo "✓ All pre-commit checks passed."

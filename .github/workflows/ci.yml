@@ -1,0 +1,446 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+# Each push to main gets its own group, so a later push never cancels the secret scan of an earlier one
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Named, so GitHub runs bash with pipefail. Its default bash -e lets a failing command before a pipe pass
+defaults:
+  run:
+    shell: bash
+
+env:
+  TRUFFLEHOG_IMAGE: ghcr.io/trufflesecurity/trufflehog:3.99.7@sha256:0d003fc3abc4e1565eca8462b992001314de51451e96e3c44de80d116794d5d1
+
+jobs:
+  checks:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+      # Node 25+ no longer bundles Corepack
+      - run: npm i -g corepack@0.36.0 && corepack enable
+      # Again with the cache, now that yarn resolves to Yarn 4 and reports its cache folder
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+          cache: yarn
+      - run: yarn install --immutable
+      # Fails on a high or critical advisory against a direct dependency of any workspace
+      - run: yarn npm audit --all --severity high
+      - run: yarn format:check
+      - run: yarn lint
+      # Unused files, exports and dependencies
+      - run: yarn knip --no-progress
+      - run: yarn workspace server typecheck
+      - run: yarn workspace website typecheck
+      - run: yarn workspace e2e typecheck
+      - run: node --test scripts/support-bundle.test.mjs scripts/size-budgets.test.mjs scripts/commit-msg.test.mjs scripts/release-notes.test.mjs
+      - run: bash scripts/nerla-update.test.sh
+      - name: Commit subjects follow the repo's types
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          git log --no-merges --format=%s "origin/$BASE..HEAD" | while IFS= read -r subject; do
+            echo "$subject" > "$RUNNER_TEMP/subject"
+            NERLA_CI=1 sh .githooks/commit-msg "$RUNNER_TEMP/subject" || { echo "Bad subject: $subject"; exit 1; }
+          done
+      # Generate never connects, the URL only lets drizzle-kit read its config
+      - name: Schema and migrations agree
+        env:
+          DATABASE_URL: postgres://ci:ci@localhost:5432/ci
+        run: |
+          yarn workspace server drizzle-kit generate --name ci-check
+          if [ -n "$(git status --porcelain server/drizzle)" ]; then
+            git status --porcelain server/drizzle
+            echo "schema.ts changed without a migration. Run yarn workspace server db:generate --name <what changed> and commit the file."
+            exit 1
+          fi
+      # Only a migration in the latest release's journal has shipped. Before the first release none has, so the
+      # baseline can still be merged again
+      - name: Shipped migrations are unchanged
+        if: github.event_name == 'pull_request'
+        run: |
+          release="$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)"
+          if [ -z "$release" ]; then
+            echo "No release yet, so no migration has shipped."
+            exit 0
+          fi
+          shipped="$(git show "$release:server/drizzle/meta/_journal.json" 2>/dev/null | sed -n 's/.*"tag": *"\([^"]*\)".*/\1/p' || true)"
+          diff="$(git diff --name-status --diff-filter=MDR "$release...HEAD" -- 'server/drizzle/*.sql')"
+          found=0
+          while read -r _status file _renamed_to; do
+            [ -n "$file" ] || continue
+            grep -qxF "$(basename "$file" .sql)" <<<"$shipped" || continue
+            echo "$file"
+            found=1
+          done <<<"$diff"
+          if [ "$found" = 1 ]; then
+            echo "These migration files were already shipped in $release and must not change. Revert them and put the change in a new migration."
+            exit 1
+          fi
+
+  test-server:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:15-alpine@sha256:fceb6f86328c36f2438fae3b851b0cc57c4a7e69a58c866d9ce24281f2cf0c9c
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+      - run: npm i -g corepack@0.36.0 && corepack enable
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+          cache: yarn
+      - run: yarn install --immutable
+      - run: yarn workspace server test
+
+  test-website:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+      - run: npm i -g corepack@0.36.0 && corepack enable
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+          cache: yarn
+      - run: yarn install --immutable
+      - run: yarn workspace website test
+      - run: yarn workspace website build
+      - run: node scripts/size-budgets.mjs website website/dist
+
+  # A throwaway Postgres and Garage of its own, backed up, changed and restored
+  backup:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+      - run: npm i -g corepack@0.36.0 && corepack enable
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+          cache: yarn
+      - run: yarn install --immutable
+      - run: bash scripts/test-backup.sh
+
+  # The built website against a real server, on a fresh seeded database in a throwaway Postgres, Garage and Mailpit.
+  # prepare.ts finds them through the E2E_* variables, and locally the same harness uses the dev stack
+  e2e:
+    if: github.event_name != 'schedule'
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      COMPOSE_PROJECT_NAME: nerla-e2e
+      COMPOSE_FILE: e2e/compose.yml
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+      - run: npm i -g corepack@0.36.0 && corepack enable
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+          cache: yarn
+      - run: yarn install --immutable
+      - run: yarn workspace e2e playwright install --with-deps chromium
+      - name: Start Postgres, Garage and Mailpit with generated secrets
+        run: |
+          . ./setup-lib.sh
+          E2E_DB_PASSWORD="$(gen_secret 16)"
+          echo "::add-mask::$E2E_DB_PASSWORD"
+          export E2E_DB_PASSWORD E2E_GARAGE_TOML="$RUNNER_TEMP/garage.toml"
+          sed -e "s|RPC_SECRET_PLACEHOLDER|$(gen_secret 32)|" -e "s|ADMIN_TOKEN_PLACEHOLDER|$(gen_secret 32)|" \
+            garage.toml.template >"$E2E_GARAGE_TOML"
+          docker compose up -d --wait || { docker compose logs --tail 30; exit 1; }
+          {
+            # Compose reads these two again for the logs on failure
+            echo "E2E_DB_PASSWORD=$E2E_DB_PASSWORD"
+            echo "E2E_GARAGE_TOML=$E2E_GARAGE_TOML"
+            echo "E2E_POSTGRES_URL=postgresql://e2e:$E2E_DB_PASSWORD@$(docker compose port postgres 5432)/postgres" # trufflehog:ignore
+            echo "E2E_GARAGE_CONTAINER=$(docker compose ps -q garage)"
+            echo "E2E_GARAGE_ENDPOINT=http://$(docker compose port garage 3900)"
+            echo "E2E_SMTP_PORT=$(docker compose port mailpit 1025 | cut -d: -f2)"
+            echo "E2E_MAILPIT_URL=http://$(docker compose port mailpit 8025)"
+          } >>"$GITHUB_ENV"
+      # prepare.ts gives Garage its layout, the bucket and a key of its own, migrates, seeds and builds
+      - run: yarn test:e2e
+      # The storage contract against the same Garage, with the bucket and key prepare.ts made
+      - name: Storage contract against Garage
+        run: |
+          TEST_S3_ACCESS_KEY="$(jq -r .server.S3_ACCESS_KEY e2e/.run/stack.json)"
+          TEST_S3_SECRET_KEY="$(jq -r .server.S3_SECRET_KEY e2e/.run/stack.json)"
+          echo "::add-mask::$TEST_S3_SECRET_KEY"
+          export TEST_S3_ACCESS_KEY TEST_S3_SECRET_KEY TEST_S3_ENDPOINT="$E2E_GARAGE_ENDPOINT" TEST_S3_REGION=garage TEST_S3_BUCKET=nerla-e2e
+          TEST_DATABASE_URL="$E2E_POSTGRES_URL" yarn workspace server test --project db src/services/storage/s3.contract.db.test.ts
+      - name: Stack logs
+        if: failure()
+        run: docker compose logs --tail 100
+      - name: Stop the stack
+        if: always()
+        run: docker compose down -v
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: e2e-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          retention-days: 7
+
+  scan:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SEMGREP_SEND_METRICS: "off"
+      SEMGREP_ENABLE_VERSION_CHECK: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - run: python -m pip install semgrep==1.164.0
+      # Semgrep tests one file per run, and --test on the folder would skip it as a dot folder
+      - name: Test the Nerla rules
+        run: for f in .semgrep/tests/*; do semgrep scan --test --metrics off --config .semgrep/nerla.yml "$f" || exit 1; done
+      # The whole repo, as in the commit hook. .semgrepignore keeps out what it should
+      - name: Semgrep with the Nerla rules
+        run: semgrep scan --config .semgrep/nerla.yml --metrics off --disable-version-check --error .
+      # Named packs, because --config auto forces metrics on. The Express XSS rule flags every Fastify reply.send, which
+      # serializes to JSON, and the server never answers with HTML. The longer timeout keeps big files like schema.ts checked
+      - name: Semgrep with the registry rules
+        run: >-
+          semgrep scan --config p/default --config p/typescript --metrics off --disable-version-check --error --timeout 30
+          --exclude-rule javascript.express.security.audit.xss.direct-response-write.direct-response-write
+          server/src website/src
+      - name: Secret scan of the new commits
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          commits=("$HEAD")
+          since=()
+          # A push that creates the branch has no commit before it, so the whole history is scanned
+          if [ "$BASE" != 0000000000000000000000000000000000000000 ]; then
+            commits+=("$BASE")
+            since=(--since-commit "$BASE")
+          fi
+          for commit in "${commits[@]}"; do
+            git cat-file -e "$commit^{commit}" || { echo "Commit $commit is not in the checkout, so the secret scan cannot run."; exit 1; }
+          done
+          status=0
+          docker run --rm -v "$PWD:/repo:ro" "$TRUFFLEHOG_IMAGE" git file:///repo "${since[@]}" --branch "$HEAD" \
+            --results=verified,unknown --fail --no-update 2>&1 | tee "$RUNNER_TEMP/trufflehog.log" || status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "TruffleHog exited with $status. 183 means a secret that is live or could not be checked, anything else means the scan did not finish."
+            exit 1
+          fi
+          # TruffleHog still exits 0 when it cannot read a commit, so any error it logs fails the scan
+          if grep -q "$(printf '\terror\t')" "$RUNNER_TEMP/trufflehog.log"; then
+            echo "TruffleHog logged errors above, so the scan did not finish."
+            exit 1
+          fi
+
+  boot:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:15-alpine@sha256:fceb6f86328c36f2438fae3b851b0cc57c4a7e69a58c866d9ce24281f2cf0c9c
+        env:
+          POSTGRES_PASSWORD: boot-check-pass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build server image
+        run: docker build -f server/Dockerfile -t nerla-server:boot .
+      # The image runs in production mode, which also needs a LiveKit secret and refuses a weak database password. Garage, LiveKit and SMTP stay absent, the server starts without them
+      - name: Start the server
+        run: |
+          docker run -d --name nerla-boot --network host \
+            -e DATABASE_URL=postgresql://postgres:boot-check-pass@localhost:5432/postgres \
+            -e DB_SSL=false \
+            -e JWT_SECRET="$(openssl rand -hex 32)" \
+            -e LIVEKIT_API_SECRET="$(openssl rand -hex 32)" \
+            nerla-server:boot
+      - name: Wait for /health
+        run: |
+          deadline=$((SECONDS + 60))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            if [ "$(curl -s --max-time 2 -o /dev/null -w '%{http_code}' http://localhost:5000/health)" = 200 ]; then
+              echo "The server answered /health after $SECONDS seconds"
+              exit 0
+            fi
+            if [ "$(docker inspect -f '{{.State.Running}}' nerla-boot)" != true ]; then
+              echo "The server stopped before it answered /health"
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "The server did not answer /health with 200 within 60 seconds"
+          exit 1
+      - name: Server logs
+        if: failure()
+        run: docker logs nerla-boot
+
+  # The web image with SITE_ADDRESS=localhost and TLS_MODE=internal in front of a stand-in server: the app, its cache headers,
+  # the API, health and MCP, board fonts across origins, the body limits, WebSockets, signalling on 7880 and the CSP
+  proxy:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: bash scripts/test-proxy.sh
+
+  # Also runs weekly, so aging base images fail a run. A high or critical finding fails the job. .grype.yaml holds the few with no fix to take yet, each with its reason
+  container-scan:
+    runs-on: ubuntu-latest
+    # Two cold image builds plus the Grype database, so it gets the longer limit
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build server image
+        run: docker build -f server/Dockerfile -t nerla-server:ci .
+      - name: Scan server image with Grype
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: nerla-server:ci
+          config: .grype.yaml
+          fail-build: true
+          severity-cutoff: high
+      - name: Build web image
+        run: docker build -f proxy/Dockerfile -t nerla-web:ci .
+      - name: Scan web image with Grype
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: nerla-web:ci
+          config: .grype.yaml
+          fail-build: true
+          severity-cutoff: high
+      - run: node scripts/size-budgets.mjs server-image nerla-server:ci
+
+  # The installer size is recorded, with no limit
+  desktop:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+      - run: npm i -g corepack@0.36.0 && corepack enable
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+          cache: yarn
+      - run: yarn install --immutable
+      - name: Install the Tauri Linux packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl file libayatana-appindicator3-dev librsvg2-dev libssl-dev libwebkit2gtk-4.1-dev libxdo-dev wget
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: desktop/src-tauri
+      - run: cargo fmt --check
+        working-directory: desktop/src-tauri
+      - run: cargo clippy --locked -- -D warnings
+        working-directory: desktop/src-tauri
+      # The build runs the website build first, through beforeBuildCommand
+      - run: yarn workspace desktop tauri build --bundles deb,appimage
+      # The notices read every crate, including the Windows and macOS ones the Linux build never downloads
+      - run: cargo fetch --locked
+        working-directory: desktop/src-tauri
+      - name: Third-party notices are current
+        run: |
+          yarn notices
+          git diff --exit-code -- THIRD_PARTY_NOTICES.md server/THIRD_PARTY_LICENSES.md || {
+            echo "The third-party notices are out of date. Run yarn notices and commit the result."
+            exit 1
+          }
+      - name: Installer size
+        run: |
+          {
+            echo "### Installer sizes"
+            for f in desktop/src-tauri/target/release/bundle/deb/*.deb desktop/src-tauri/target/release/bundle/appimage/*.AppImage; do
+              echo "- $(basename "$f"): $(du -h "$f" | cut -f1)"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"

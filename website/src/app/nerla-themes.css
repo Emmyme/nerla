@@ -1,0 +1,161 @@
+/* Nerla palette: bubblegum, pistachio, sky, lavender and lemon pastels on cool neutrals */
+
+[data-theme="nerla"][data-mode="light"] {
+  --color-bg: #fcfcfd;
+  --color-surface: #ffffff;
+  --color-surface-solid: #ffffff;
+  --color-surface-raised: #f4f5f7;
+  --color-sunk: #f4f5f7;
+  --color-hover: #f6f7f9;
+  --color-scrim: rgb(31 36 51 / 0.25);
+  --color-pistachio-ink: #1f2433;
+  --color-bubblegum-ink: #1f2433;
+  --color-sky-ink: #1f2433;
+  --color-lavender-ink: #1f2433;
+  --color-lemon-ink: #1f2433;
+  --color-border: #e8e9ee;
+  --color-input: #878d9f;
+  --color-text: #1f2433;
+  --color-text-muted: #58607a;
+  --color-accent: #ff9cc8;
+  --color-accent-hover: #ff86bc;
+  --color-accent-subtle: #ffedf5;
+  --color-accent-text: #2f67bd;
+  --color-text-on-accent: #1f2433;
+  --color-secondary: #dcd0ff;
+  --color-secondary-hover: #cfc0ff;
+  --color-secondary-subtle: #f3efff;
+  --color-pistachio: #d5edb5;
+  --color-pistachio-soft: #f1f8e7;
+  --color-bubblegum: #ff9cc8;
+  --color-bubblegum-soft: #ffedf5;
+  --color-sky: #bfe3ff;
+  --color-sky-soft: #edf6ff;
+  --color-lavender: #dcd0ff;
+  --color-lavender-soft: #f3efff;
+  --color-lemon: #fff1a8;
+  --color-lemon-soft: #fffadf;
+  --color-pistachio-strong: #a8d477;
+  --color-sky-strong: #7cc2f7;
+  --color-lavender-strong: #b39cff;
+  --color-lemon-strong: #f5c542;
+  --color-bubblegum-strong: #ff6fae;
+  --color-folder-sky-back: var(--color-sky-strong);
+  --color-folder-sky-front: var(--color-sky);
+  --color-folder-pistachio-back: var(--color-pistachio-strong);
+  --color-folder-pistachio-front: var(--color-pistachio);
+  --color-folder-bubblegum-back: var(--color-bubblegum-strong);
+  --color-folder-bubblegum-front: var(--color-bubblegum);
+  --color-folder-lavender-back: var(--color-lavender-strong);
+  --color-folder-lavender-front: var(--color-lavender);
+  --color-folder-lemon-back: var(--color-lemon-strong);
+  --color-folder-lemon-front: var(--color-lemon);
+  --color-selected: #ddeeff;
+  --color-priority-off: #dcd0ff;
+  --color-berry: #d63c78;
+  --color-berry-text: #c0306f;
+  --color-unread: #3574d4;
+  --color-join: #3574d4;
+  --color-status-backlog: #868b94;
+  --color-status-todo: #3d8fdb;
+  --color-status-progress: #7a5cf0;
+  --color-status-done: #4c9a2a;
+  --color-col-backlog: #f5f6f8;
+  --color-col-todo: #f0f7ff;
+  --color-col-progress: #f5f2ff;
+  --color-col-done: #f4faec;
+  --color-stat-1: var(--color-pistachio-soft);
+  --color-stat-2: var(--color-bubblegum-soft);
+  --color-stat-3: var(--color-sky-soft);
+  --color-stat-4: var(--color-lemon-soft);
+  --shadow-popover: 0 0.5rem 1.5rem rgba(31, 36, 51, 0.1);
+}
+
+[data-theme="nerla"][data-mode="dark"] {
+  --color-bg: #17181c;
+  --color-surface: #1f2025;
+  --color-surface-solid: #1f2025;
+  --color-surface-raised: #27292f;
+  --color-sunk: #27292f;
+  --color-hover: #232429;
+  --color-scrim: rgb(0 0 0 / 0.6);
+  --color-pistachio-ink: #1f2025;
+  --color-bubblegum-ink: #1f2025;
+  --color-sky-ink: #1f2025;
+  --color-lavender-ink: #1f2025;
+  --color-lemon-ink: #1f2025;
+  --color-border: #33353c;
+  --color-input: #6e727d;
+  --color-text: #eceef5;
+  --color-text-muted: #a3a9bd;
+  --color-accent: #ff9cc8;
+  --color-accent-hover: #ff86bc;
+  --color-accent-subtle: #27292f;
+  --color-accent-text: #8fb6f0;
+  --color-text-on-accent: #1f2025;
+  --color-secondary: #e2ccff;
+  --color-secondary-hover: #d8bfff;
+  --color-secondary-subtle: #27292f;
+  --color-pistachio: #d5edb5;
+  --color-pistachio-soft: #d5edb5;
+  --color-bubblegum: #ff9cc8;
+  --color-bubblegum-soft: #ff9cc8;
+  --color-sky: #bfe3ff;
+  --color-sky-soft: #bfe3ff;
+  --color-lavender: #e2ccff;
+  --color-lavender-soft: #e2ccff;
+  --color-lemon: #fff1a8;
+  --color-lemon-soft: #fff1a8;
+  --color-pistachio-strong: var(--color-pistachio);
+  --color-sky-strong: var(--color-sky);
+  --color-lavender-strong: var(--color-lavender);
+  --color-lemon-strong: var(--color-lemon);
+  --color-bubblegum-strong: var(--color-bubblegum);
+  /* Strong steps match the pastels in dark, so a folder's back takes the deeper shade of each */
+  --color-folder-sky-back: #7cc2f7;
+  --color-folder-sky-front: var(--color-sky);
+  --color-folder-pistachio-back: #a8d477;
+  --color-folder-pistachio-front: var(--color-pistachio);
+  --color-folder-bubblegum-back: #ff6fae;
+  --color-folder-bubblegum-front: var(--color-bubblegum);
+  --color-folder-lavender-back: #b39cff;
+  --color-folder-lavender-front: var(--color-lavender);
+  --color-folder-lemon-back: #f5c542;
+  --color-folder-lemon-front: var(--color-lemon);
+  --color-selected: #2e3037;
+  --color-priority-off: #45474f;
+  --color-berry: #ff6fa3;
+  --color-berry-text: #ff8ab5;
+  --color-unread: #3574d4;
+  --color-join: #3574d4;
+  --color-status-backlog: #a3a8b2;
+  --color-status-todo: #6fb4f5;
+  --color-status-progress: #c3a3ff;
+  --color-status-done: #a8d477;
+  --color-col-backlog: #1b1c21;
+  --color-col-todo: #1b1c21;
+  --color-col-progress: #1b1c21;
+  --color-col-done: #1b1c21;
+  --color-stat-1: var(--color-pistachio-soft);
+  --color-stat-2: var(--color-bubblegum-soft);
+  --color-stat-3: var(--color-sky-soft);
+  --color-stat-4: var(--color-lemon-soft);
+  --shadow-popover: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.45);
+}
+
+/* More contrast, when the device asks or the user turns it on: muted text at 7:1, hairlines and field edges at 3:1 and more */
+[data-contrast="more"][data-theme="nerla"][data-mode="light"],
+[data-contrast="more"] [data-theme="nerla"][data-mode="light"] {
+  --color-text-muted: #454c63;
+  --color-border: #7c8296;
+  --color-input: #5f667b;
+  --color-accent-text: #2a5ca8;
+}
+
+[data-contrast="more"][data-theme="nerla"][data-mode="dark"],
+[data-contrast="more"] [data-theme="nerla"][data-mode="dark"] {
+  --color-text: #f6f7fb;
+  --color-text-muted: #c2c7d6;
+  --color-border: #7e8391;
+  --color-input: #9a9fad;
+}

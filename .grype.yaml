@@ -1,0 +1,16 @@
+# Grype findings to let pass, read by the container-scan job. Each rule names the package version it covers, so an image
+# that moves past that version is scanned in full again.
+#
+# The Caddy binary in caddy:2.11.8-alpine, the newest Caddy image (2026-11-05), is built with golang.org/x/net v0.60.0
+# and go-jose v4.1.5 and v3.0.5. x/net 0.62.0 and go-jose 4.1.6 fix these, and go-jose v3 has no fix at all, but no
+# Caddy release carries them yet. Bump the caddy image once one does.
+ignore:
+  - vulnerability: GO-2026-6860
+    package: { name: golang.org/x/net, version: v0.60.0, location: /usr/bin/caddy }
+    reason: No Caddy release has the fix yet. Review by 2027-02-04
+  - vulnerability: GHSA-mgcc-cww5-fp2q
+    package: { name: github.com/go-jose/go-jose/v4, version: v4.1.5, location: /usr/bin/caddy }
+    reason: No Caddy release has the fix yet. Review by 2027-02-04
+  - vulnerability: GHSA-mgcc-cww5-fp2q
+    package: { name: github.com/go-jose/go-jose/v3, version: v3.0.5, location: /usr/bin/caddy }
+    reason: go-jose v3 has no fix. Clears once Caddy drops v3. Review by 2027-02-04

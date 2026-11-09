@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/knip/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.mjs"],
+      "project": ["scripts/**/*.mjs"]
+    },
+    "server": {
+      "entry": ["src/scripts/*.ts", "scripts/**/*.ts", "vitest.unit.config.ts"],
+      "project": ["src/**/*.ts", "scripts/**/*.ts"]
+    },
+    "website": {
+      "entry": ["postcss.config.mjs", "public/theme-init.js"],
+      "ignore": ["src/app/nerla-themes.css"],
+      "ignoreDependencies": ["tailwindcss-animate", "@tailwindcss/postcss", "tailwindcss"]
+    },
+    "e2e": {
+      "ignoreDependencies": ["vite", "@fastify/cookie"]
+    }
+  }
+}

@@ -1,0 +1,93 @@
+/* A paper or board is copied into #nerla-print and printed alone, in the light palette */
+#nerla-print {
+  display: none;
+}
+
+@page nerla-board-landscape {
+  size: landscape;
+  margin: 1cm;
+}
+
+@page nerla-board-portrait {
+  size: portrait;
+  margin: 1cm;
+}
+
+@media print {
+  @page {
+    margin: 1.6cm;
+  }
+
+  html.nerla-printing,
+  html.nerla-printing body {
+    height: auto;
+    overflow: visible;
+    background: #ffffff;
+  }
+
+  html.nerla-printing body > *:not(#nerla-print) {
+    display: none !important;
+  }
+
+  html.nerla-printing #nerla-print {
+    display: block;
+    color: var(--color-text);
+    background: #ffffff;
+    font-family: var(--font-body);
+  }
+
+  #nerla-print .print-title {
+    margin: 0 0 1rem;
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  /* Carets, find marks, toolbars, comments and buttons stay on screen */
+  #nerla-print .collaboration-carets__caret,
+  #nerla-print .collaboration-carets__selection,
+  #nerla-print [data-print="hide"],
+  #nerla-print button {
+    display: none !important;
+  }
+
+  #nerla-print .paper-find-match {
+    background: none !important;
+  }
+
+  #nerla-print .paper-content .ProseMirror {
+    min-height: 0;
+    padding: 0;
+  }
+
+  #nerla-print .paper-board {
+    break-inside: avoid;
+    background: none;
+    box-shadow: none;
+  }
+
+  /* Print is always light, so no filter from the screen may follow a board onto paper */
+  #nerla-print svg,
+  #nerla-print svg use {
+    filter: none !important;
+  }
+
+  #nerla-print .print-board {
+    display: flex;
+    width: 100%;
+    height: 97vh;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    page: nerla-board-portrait;
+  }
+
+  #nerla-print .print-board.is-landscape {
+    page: nerla-board-landscape;
+  }
+
+  #nerla-print .print-board svg {
+    width: 100%;
+    height: 100%;
+  }
+}

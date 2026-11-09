@@ -1,0 +1,100 @@
+# Nerla's own Semgrep rules, run offline by .githooks/pre-commit and by CI.
+# Each rule has an annotated test in .semgrep/tests. Semgrep tests one file per run, so run them all with
+#   sh -c 'for f in .semgrep/tests/*; do semgrep scan --test --metrics off --config .semgrep/nerla.yml "$f" || exit 1; done'
+rules:
+  - id: nerla-dangerously-set-inner-html
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: dangerouslySetInnerHTML renders raw HTML, so any user text in it can run script. Render React nodes or sanitized output instead.
+    paths:
+      include:
+        - "**/website/src/**"
+    pattern-either:
+      - pattern: <$EL dangerouslySetInnerHTML={$HTML} />
+      - pattern: "{..., dangerouslySetInnerHTML: $HTML, ...}"
+
+  - id: nerla-eval
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: eval and new Function run a string as code. Parse the data or call the function directly instead.
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
+      - pattern: Function(...)
+
+  - id: nerla-raw-sql-interpolation
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: Raw SQL built from an interpolated value can be injected. Use the sql template tag, which passes values as parameters.
+    pattern-either:
+      - pattern: sql.raw(`...${$X}...`)
+      - pattern: sql.raw("..." + $X)
+      - pattern: sql.raw($X + "...")
+      - pattern: $DB.unsafe(`...${$X}...`, ...)
+      - pattern: $DB.unsafe("..." + $X, ...)
+      - pattern: $DB.unsafe($X + "...", ...)
+
+  - id: nerla-exec-template
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: exec runs its command through a shell, so an interpolated value can inject commands. Use execFile or spawn with an argument array.
+    patterns:
+      - pattern-either:
+          - patterns:
+              - pattern-either:
+                  - pattern-inside: |
+                      import { ..., $FN, ... } from "$MOD"
+                      ...
+                  - pattern-inside: |
+                      const { ..., $FN, ... } = require("$MOD")
+                      ...
+              - pattern: $FN(`...${$X}...`, ...)
+          - patterns:
+              - pattern-either:
+                  - pattern-inside: |
+                      import $CP from "$MOD"
+                      ...
+                  - pattern-inside: |
+                      import * as $CP from "$MOD"
+                      ...
+                  - pattern-inside: |
+                      const $CP = require("$MOD")
+                      ...
+              - pattern: $CP.$FN(`...${$X}...`, ...)
+          - pattern: require("$MOD").$FN(`...${$X}...`, ...)
+      - metavariable-regex:
+          metavariable: $MOD
+          regex: ^(node:)?child_process$
+      - metavariable-regex:
+          metavariable: $FN
+          regex: ^exec(Sync)?$
+
+  - id: nerla-server-math-random
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: Math.random() is predictable. Use randomInt, randomUUID or randomBytes from node:crypto in server code.
+    paths:
+      include:
+        - "**/server/src/**"
+      exclude:
+        - "*.test.ts"
+        - "*.spec.ts"
+        - "**/test/**"
+        - "**/__tests__/**"
+    pattern: Math.random()
+
+  - id: nerla-logged-secret
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: This log call carries a password, token or secret field, which would land in the logs. Log an id or a redacted value instead.
+    patterns:
+      - pattern: "$LOG.$METHOD(..., <... {..., $KEY: $V, ...} ...>, ...)"
+      - metavariable-regex:
+          metavariable: $LOG
+          regex: (?i)^(.*\.)?(log|logger|console)$
+      - metavariable-regex:
+          metavariable: $METHOD
+          regex: ^(log|info|warn|error|debug|trace|fatal)$
+      - metavariable-regex:
+          metavariable: $KEY
+          regex: (?i)^.*(password|secret|token)$

@@ -1,0 +1,15 @@
+# Paths excluded from `semgrep scan`. The commit hook filters its staged list the same way.
+
+# Generated runtime config that holds real secrets.
+# The committed *.template files (placeholders only) are scanned instead.
+garage.toml
+livekit.yaml
+
+# Local environment files (gitignored, never shipped).
+.env
+
+# Documentation and design notes, prose, not shipped code.
+docs/
+
+# Semgrep rule tests, code that breaks the rules on purpose.
+.semgrep/tests/

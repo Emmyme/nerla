@@ -1,0 +1,365 @@
+#!/usr/bin/env bash
+#
+# Nerla management command. Wraps the docker compose invocations so day-to-day
+# operations do not require remembering which compose files to pass.
+#
+#   ./nerla status | logs | update | build | restart | stop | start | backup | restore | check | doctor | move-files | support-bundle
+#
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+# shellcheck source=scripts/compose.sh
+. "$SCRIPT_DIR/scripts/compose.sh"
+nerla_compose
+
+die() { echo "ERROR: $*" >&2; exit 1; }
+
+domain() {
+    sed -n 's|^CLIENT_URL=https\?://||p' .env 2>/dev/null | head -1
+}
+
+cmd_build() { "${COMPOSE[@]}" build "$@"; }
+
+usage() {
+    cat <<'USAGE'
+Nerla management
+
+  ./nerla status            Show whether each service is running and healthy
+  ./nerla logs [service]    Follow logs (all services, or one: server web postgres garage livekit)
+  ./nerla update [--force]  Check the setup, back up, move to the newest release and pull its images
+                            (or build from source before the first release, or when .env says
+                            NERLA_BUILD=source), restart, and wait for the server to answer (stops on
+                            a setup problem, unless --force is given)
+  ./nerla build             Build the images from source, for a source install
+  ./nerla restart [service] Restart everything, or one service, with the settings in .env read again
+  ./nerla stop [service]    Stop everything, or one service (data is preserved)
+  ./nerla start [service]   Start everything again, or one service
+  ./nerla backup            Back up the database, uploaded files and settings now
+  ./nerla restore <dir>     Restore from a backup folder (asks before replacing anything)
+  ./nerla check             List setup problems, such as email not working, and how to fix each
+  ./nerla doctor            Check the install is reachable, then run the setup check
+  ./nerla move-files --to local|s3 [--delete-source]
+                            Copy every file to the other store and check each copy, with the new
+                            store set by MOVE_TO_ lines in .env. Deletes from the old store only
+                            with --delete-source, and only once every copy checked out
+  ./nerla support-bundle    Collect the status, logs and settings, with every secret removed, into
+                            one file to send to support
+
+Anything not listed here is passed straight through to docker compose.
+USAGE
+}
+
+cmd_status() {
+    "${COMPOSE[@]}" ps --format 'table {{.Service}}\t{{.Status}}'
+    local d
+    d="$(domain)"
+    [ -n "$d" ] && echo "" && echo "URL: https://${d}"
+}
+
+CHECK_SCRIPT=dist/scripts/check.js
+
+# Ends 0 when all is well, 1 on a setup problem, and 3 when the check can't run
+run_check() {
+    if ! nerla_running server; then
+        echo "The server is not running, so the setup check can't run. Start Nerla with ./nerla start, then try again." >&2
+        return 3
+    fi
+    "${COMPOSE[@]}" exec -T server node "$CHECK_SCRIPT"
+}
+
+MOVE_SCRIPT=dist/scripts/moveFiles.js
+
+# The MOVE_TO_ lines in .env go to the server as they are now, so adding one needs no restart
+cmd_move_files() {
+    local name pass=()
+    nerla_running server || die "The server is not running, so files can't be moved. Start Nerla with ./nerla start, then try again."
+    if grep -q '^MOVE_TO_STORAGE_PATH=' .env 2>/dev/null; then
+        die "Files moved to local disk always go in Nerla's files volume, so a folder of their own would be lost. Remove the MOVE_TO_STORAGE_PATH line from .env."
+    fi
+    for name in $(sed -n 's/^\(MOVE_TO_[A-Z0-9_]*\)=.*/\1/p' .env 2>/dev/null | sort -u); do
+        export "$name=$(compose_value "$(env_text "$name" .env)")"
+        pass+=(-e "$name")
+    done
+    "${COMPOSE[@]}" exec -T ${pass[@]+"${pass[@]}"} server node "$MOVE_SCRIPT" "$@"
+}
+
+# The same Node image the web proxy builds from, so a host with only Docker can run the redaction
+NODE_IMAGE="node:26.12.1-alpine@sha256:40cd011b55415bc894e45b02fdd5a5dfde056921b7d23a64c74f80497af48797"
+
+host_path() {
+    (cd "$1" && { pwd -W 2>/dev/null || pwd; })
+}
+
+env_or() {
+    local value
+    value="$(env_value "$1" .env)"
+    printf '%s' "${value:-$2}"
+}
+
+# Runs a command into a file, and a command that fails still leaves its message there
+collect() {
+    local file="$1"
+    shift
+    "$@" >"$file" 2>&1 || echo "(This ended with an error, so the lines above may be incomplete.)" >>"$file"
+}
+
+cmd_support_bundle() {
+    local name tmp dir service out ids
+    umask 077
+    name="nerla-support-$(date +%Y-%m-%d-%H%M%S)"
+    tmp="$(mktemp -d)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$tmp'" EXIT
+    dir="$tmp/$name"
+    mkdir -p "$dir/logs"
+
+    echo "Collecting the status, logs and settings..."
+    collect "$dir/compose-ps.txt" "${COMPOSE[@]}" ps -a
+    for service in $("${COMPOSE[@]}" ps -a --services 2>/dev/null); do
+        collect "$dir/logs/$service.log" "${COMPOSE[@]}" logs --no-color --timestamps --tail 2000 "$service"
+    done
+    collect "$dir/check.txt" run_check
+    {
+        echo "Git commit: $(git rev-parse HEAD 2>/dev/null || echo "unknown, as this folder is not a git checkout") $(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+        echo ""
+        echo "Images (container, image, digest):"
+        ids="$("${COMPOSE[@]}" ps -aq 2>/dev/null)" || true
+        # shellcheck disable=SC2086
+        [ -z "$ids" ] || docker inspect -f '{{.Name}} {{.Config.Image}} {{.Image}}' $ids 2>&1 || true
+        echo ""
+        echo "Database updates applied:"
+        "${COMPOSE[@]}" exec -T postgres psql -X -U "$(env_or DB_USER postgres)" -d "$(env_or DB_NAME nerla)" -tAc \
+            "select name || '  ' || applied_at from nerla_migrations order by name" 2>&1 || echo "(Could not read them, as the lines above say.)"
+    } >"$dir/versions.txt"
+
+    # Every secret goes before anything is packed
+    docker run --rm --network none --user "$(id -u):$(id -g)" \
+        -v "$(host_path "$SCRIPT_DIR"):/install:ro" -v "$(host_path "$tmp"):/bundle" \
+        "$NODE_IMAGE" node /install/scripts/support-bundle.mjs /install "/bundle/$name" || {
+        # 3 means the script has already said which file it can't read
+        [ "$?" -eq 3 ] && exit 1
+        die "The settings could not be cleaned of secrets, so no bundle was made. The lines above say why."
+    }
+
+    out="$SCRIPT_DIR/$name.tar.gz"
+    tar czf "$out" -C "$tmp" "$name" || die "The bundle could not be packed. The lines above say why."
+    echo ""
+    echo "Support bundle: $out"
+    echo "This bundle holds no passwords or keys. Check it before you share it."
+}
+
+cmd_doctor() {
+    local d status=0
+    d="$(domain)"
+    [ -n "$d" ] || die "No domain found in .env. Run ./setup.sh first."
+
+    # shellcheck source=/dev/null
+    source "$SCRIPT_DIR/setup-lib.sh"
+    echo "Checking https://${d} ..."
+    echo ""
+    verify_install "$d" https "$(env_value TLS_MODE .env)" || status=1
+    echo ""
+    echo "Running the setup check..."
+    run_check || status=1
+    return "$status"
+}
+
+# Each try gives up after 5 s, so a server that accepts and never answers can't hold the wait past its limit
+HEALTH_PROBE="require('http').get('http://localhost:5000/health', { timeout: 5000 }, (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('timeout', () => process.exit(1)).on('error', () => process.exit(1))"
+WAIT_SECONDS=120
+
+# Ends 0 once the server answers /health, and 1 when it stops or restarts, or does not answer in time.
+# An unchanged update keeps the container and the restarts it had before, so only a restart during the wait counts
+wait_for_server() {
+    local before="$1" id seen="" state count baseline=0 deadline=$((SECONDS + WAIT_SECONDS))
+    while [ "$SECONDS" -lt "$deadline" ]; do
+        id="$(nerla_container server || true)"
+        state="" count=0
+        if [ -n "$id" ]; then
+            read -r state count < <(docker inspect -f '{{.State.Status}} {{.RestartCount}}' "$id" 2>/dev/null) || true
+        fi
+        # A new container starts its own count
+        if [ -n "$id" ] && [ "$id" != "$seen" ]; then
+            seen="$id"
+            baseline=0
+            [ "$id" = "$before" ] && baseline="${count:-0}"
+        fi
+        [ "${count:-0}" -gt "$baseline" ] && return 1
+        case "$state" in
+            running) "${COMPOSE[@]}" exec -T server node -e "$HEALTH_PROBE" >/dev/null 2>&1 && return 0 ;;
+            created | "") ;;
+            *) return 1 ;;
+        esac
+        sleep 2
+    done
+    return 1
+}
+
+server_state() {
+    docker inspect -f '{{.State.Status}}' "$(nerla_container server)" 2>/dev/null || true
+}
+
+# What failed, and the exact way back to the version from before the update. A fourth argument of web means the
+# server is healthy and only the web proxy did not start
+start_failed() {
+    local previous="$1" branch="$2" backup="$3" fatal
+    {
+        echo ""
+        if [ "${4:-}" = web ]; then
+            echo "ERROR: The web proxy could not start, though the server did. The lines above say why, most often a port"
+            echo "that another program already uses, shown as: port is already allocated, or address already in use."
+            echo "Stop that program or free the port, then run ./nerla update again."
+        elif [ "$(server_state)" = created ]; then
+            echo "ERROR: A service the server waits for did not start. The lines above say which, most often a port in use."
+        else
+            echo "ERROR: The new version of the server did not start."
+            fatal="$("${COMPOSE[@]}" logs --no-log-prefix --tail 50 server 2>/dev/null | grep 'FATAL:' || true)"
+            if [ -n "$fatal" ]; then
+                echo "It said:"
+                echo "$fatal" | sed 's/^/  /'
+            else
+                echo "Its last lines were:"
+                "${COMPOSE[@]}" logs --no-log-prefix --tail 15 server 2>/dev/null | sed 's/^/  /' || true
+            fi
+            echo ""
+            echo "If the lines above say it is still applying database updates, wait, and check with ./nerla status."
+            echo "SETUP.md lists each message under Start messages, with its fix."
+        fi
+        echo ""
+        echo "To go back to the version you had ($previous):"
+        echo "  git checkout $previous"
+        echo "  ./nerla start"
+        echo "A source install also runs ./nerla build before ./nerla start."
+        if [ -n "$backup" ]; then
+            echo "Only if the data must go back to how it was before the update as well, then run:"
+            echo "  ./nerla restore $backup"
+        fi
+        if [ "$branch" != HEAD ]; then
+            echo "Once a fixed version is out, run git checkout $branch, then ./nerla update."
+        fi
+    } >&2
+    exit 1
+}
+
+# Restarting reuses a container with the settings it was made with, so a changed .env needs a new one
+cmd_restart() {
+    if [ "$#" -gt 0 ]; then
+        "${COMPOSE[@]}" up -d --force-recreate --no-deps "$@"
+    else
+        "${COMPOSE[@]}" up -d --force-recreate
+    fi
+}
+
+cmd_update() {
+    local force=0 arg code previous branch log backup before old build tag
+    for arg in "$@"; do
+        case "$arg" in
+            --force) force=1 ;;
+            *) die "./nerla update does not know $arg. It takes only --force." ;;
+        esac
+    done
+    case "${COMPOSE[*]} ${COMPOSE_FILE:-}" in
+        *docker-compose.prod.yml*) ;;
+        *) die "./nerla update is for installs. In development, pull with git and restart yarn dev." ;;
+    esac
+
+    echo "Running the setup check first..."
+    if run_check; then
+        :
+    else
+        code=$?
+        if [ "$force" -eq 1 ]; then
+            echo "Updating anyway, since --force was given."
+        elif [ "$code" -eq 3 ]; then
+            die "The setup check could not run, so nothing was updated. Start Nerla, or run ./nerla update --force to update without the check."
+        else
+            die "The setup check found a problem, so nothing was updated. Fix what it lists above, or run ./nerla update --force to update anyway."
+        fi
+    fi
+    echo ""
+    echo "Backing up first, in case the update goes wrong..."
+    log="$(mktemp)"
+    if ! bash scripts/backup.sh | tee "$log"; then
+        rm -f "$log"
+        die "The backup failed, so nothing was updated. Fix the problem above, then run ./nerla update again."
+    fi
+    backup="$(sed -n 's/^Backup complete: //p' "$log" | tail -1)"
+    rm -f "$log"
+    previous="$(git rev-parse --short HEAD)"
+    branch="$(git rev-parse --abbrev-ref HEAD)"
+    echo ""
+    echo "Fetching the latest version..."
+    old="$NERLA_VERSION"
+    [ "$old" != source ] || old="$previous"
+    if [ "$(env_value NERLA_BUILD .env)" = source ]; then
+        build=1
+    else
+        build=0
+    fi
+    git fetch --tags --force --prune --prune-tags ||
+        die "Fetching the latest version failed, so nothing was updated. Check the connection to the server that holds Nerla's code, then run ./nerla update again."
+    tag="$(release_tags | head -1)"
+    if [ -n "$tag" ]; then
+        git checkout --detach "$tag" ||
+            die "Moving to $tag failed, so nothing was updated. If you changed a file such as proxy/Caddyfile, save your change, run git checkout -- <that file>, then ./nerla update again."
+        nerla_compose
+    else
+        build=1
+        echo "No release yet, so Nerla is built from source."
+        git pull --ff-only ||
+            die "Fetching the latest version failed, so nothing was updated. If you changed a file such as proxy/Caddyfile, save your change, run git checkout -- <that file>, then ./nerla update again."
+    fi
+    echo ""
+    if [ "$build" -eq 1 ]; then
+        echo "Rebuilding..."
+        "${COMPOSE[@]}" build || die "The build failed, so Nerla keeps running the version from before. The lines above say why."
+    else
+        echo "Downloading $tag..."
+        "${COMPOSE[@]}" pull || {
+            git checkout "$([ "$branch" = HEAD ] && echo "$previous" || echo "$branch")" >/dev/null 2>&1 ||
+                die "Downloading failed, and going back to $old failed too. Run git checkout $previous, then ./nerla start."
+            die "Downloading the new version failed, so nothing changed and Nerla keeps running $old. The lines above say why."
+        }
+    fi
+    echo ""
+    echo "Restarting..."
+    before="$(nerla_container server || true)"
+    if ! "${COMPOSE[@]}" up -d; then
+        # A server left as created waits for a service that did not start, so waiting for it would only take the full time
+        [ "$(server_state)" != created ] && wait_for_server "$before" &&
+            "${COMPOSE[@]}" config --services 2>/dev/null | grep -x web >/dev/null &&
+            ! nerla_running web && start_failed "$previous" "$branch" "$backup" web
+        start_failed "$previous" "$branch" "$backup"
+    fi
+    echo ""
+    echo "Waiting for the server to start (up to $WAIT_SECONDS seconds)..."
+    wait_for_server "$before" || start_failed "$previous" "$branch" "$backup"
+    cmd_status
+}
+
+main() {
+    local action="${1:-help}"
+    shift || true
+
+    case "$action" in
+        status)  cmd_status ;;
+        check)   run_check ;;
+        doctor)  cmd_doctor ;;
+        update)  cmd_update "$@" ;;
+        logs)    "${COMPOSE[@]}" logs -f --tail=100 "$@" ;;
+        restart) cmd_restart "$@" ;;
+        stop)    if [ "$#" -gt 0 ]; then "${COMPOSE[@]}" stop "$@"; else "${COMPOSE[@]}" down; fi ;;
+        start)   "${COMPOSE[@]}" up -d "$@" ;;
+        build)   cmd_build "$@" ;;
+        backup)  bash scripts/backup.sh "$@" ;;
+        restore) bash scripts/restore.sh "$@" ;;
+        move-files) cmd_move_files "$@" ;;
+        support-bundle) cmd_support_bundle ;;
+        help|-h|--help) usage ;;
+        *)       "${COMPOSE[@]}" "$action" "$@" ;;
+    esac
+}
+
+main "$@"; exit $?

@@ -1,0 +1,98 @@
+# Production overrides
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+name: nerla
+
+services:
+  postgres:
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+
+  garage:
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+
+  server:
+    image: ${NERLA_REGISTRY:-ghcr.io/emmyme}/nerla-server:${NERLA_VERSION:-source}
+    build:
+      context: .
+      dockerfile: ./server/Dockerfile
+    environment:
+      NODE_ENV: production
+      DB_SSL: ${DB_SSL:-false}
+      CLIENT_URL: ${CLIENT_URL}
+      # One reverse proxy hop (web), so X-Forwarded-For is authoritative for the per-IP rate limits.
+      # A second proxy in front of web needs TRUST_PROXY=2 in .env
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+          pids: 256
+
+  livekit:
+    # Signaling (7880) is published by web, which terminates TLS for it.
+    # These are media ports, already encrypted by WebRTC itself.
+    ports:
+      - "7881:7881/tcp"
+      - "50000-60000:50000-60000/udp"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+
+  # Caddy with the website build. It gets and renews its own certificates. proxy/Caddyfile says what each setting does
+  web:
+    image: ${NERLA_REGISTRY:-ghcr.io/emmyme}/nerla-web:${NERLA_VERSION:-source}
+    build:
+      context: .
+      dockerfile: ./proxy/Dockerfile
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?is missing from .env. Run ./setup.sh, which sets it}
+      SIGNAL_ADDRESS: ${SIGNAL_ADDRESS:-${SITE_ADDRESS}:7880}
+      TLS_MODE: ${TLS_MODE:-acme}
+      # Caddy's email option, left out when ACME_EMAIL is blank, as Let's Encrypt needs no email
+      ACME_EMAIL_OPTION: ${ACME_EMAIL:+email ${ACME_EMAIL}}
+    # Behind a separate proxy on the same machine, SETUP.md moves these to ports of their own
+    ports:
+      - "${WEB_HTTP_PORT:-80}:80"
+      - "${WEB_HTTPS_PORT:-443}:443"
+      - "${WEB_SIGNAL_PORT:-7880}:7880"
+    volumes:
+      # Certificates and their keys. Backed up, so a restore never has to ask Let's Encrypt again
+      - caddy_data:/data
+    depends_on:
+      - server
+      - livekit
+    networks:
+      - nerla-network
+    restart: unless-stopped
+    # Caddy runs as its own user, and this lets it bind 80 and 443 without any capability
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+          pids: 256
+
+volumes:
+  caddy_data:
+    driver: local

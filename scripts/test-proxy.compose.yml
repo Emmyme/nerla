@@ -1,0 +1,64 @@
+# The web image in front of a stand-in server and LiveKit, for scripts/test-proxy.sh. No container names and no fixed host ports,
+# so it runs beside a dev stack without clashing
+
+name: nerla-proxytest
+
+services:
+  # Answers JSON on 5000 (the server) and 7880 (LiveKit), streams on /mcp, and accepts any WebSocket upgrade
+  stub:
+    image: node:26.12.1-alpine@sha256:40cd011b55415bc894e45b02fdd5a5dfde056921b7d23a64c74f80497af48797
+    init: true
+    command:
+      - node
+      - -e
+      - |
+        const http = require("http")
+        const { createHash } = require("crypto")
+        const answer = (req, res) => {
+          let bytes = 0
+          req.on("data", (chunk) => (bytes += chunk.length))
+          req.on("end", () => {
+            if (req.url.startsWith("/mcp")) {
+              res.writeHead(200, { "content-type": "text/event-stream" })
+              res.write("data: first\n\n")
+              return setTimeout(() => res.end("data: last\n\n"), 3000)
+            }
+            res.writeHead(200, { "content-type": "application/json" })
+            res.end(JSON.stringify({ stub: true, url: req.url, bytes, host: req.headers.host, xff: req.headers["x-forwarded-for"] || "" }))
+          })
+        }
+        const upgrade = (req, socket) => {
+          const accept = createHash("sha1").update(req.headers["sec-websocket-key"] + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").digest("base64")
+          socket.end("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + accept + "\r\n\r\n")
+        }
+        for (const port of [5000, 7880]) http.createServer(answer).on("upgrade", upgrade).listen(port)
+    networks:
+      default:
+        aliases: [server, livekit]
+
+  web:
+    image: ${NERLA_PROXY_IMAGE:?}
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+      SIGNAL_ADDRESS: ${SIGNAL_ADDRESS:-localhost:7880}
+      TLS_MODE: ${TLS_MODE:-internal}
+    ports:
+      - target: 80
+        host_ip: 127.0.0.1
+      - target: 443
+        host_ip: 127.0.0.1
+      - target: 7880
+        host_ip: 127.0.0.1
+    volumes:
+      - caddy_data:/data
+    depends_on:
+      - stub
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  caddy_data:

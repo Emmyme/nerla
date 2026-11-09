@@ -1,0 +1,44 @@
+# Dev overrides, auto-loaded by `docker compose up`
+
+name: nerla
+
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  garage:
+    ports:
+      - "127.0.0.1:3900:3900"
+      - "127.0.0.1:3902:3902"
+
+  mailpit:
+    image: axllent/mailpit:v1.29.5@sha256:c5a6d0ba4d08187f70f305471da5fd9ad424fdfc2f25a2308226a786335dfa9f
+    container_name: nerla-mailpit
+    ports:
+      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:1025:1025"
+    networks:
+      - nerla-network
+    restart: "no"
+
+  livekit:
+    ports:
+      - "127.0.0.1:7880:7880"
+      - "7881:7881/tcp"
+      - "10000-10100:10000-10100/udp"
+
+  server:
+    build:
+      context: .
+      dockerfile: ./server/Dockerfile
+    environment:
+      NODE_ENV: development
+      EMAIL_HOST: mailpit
+      EMAIL_PORT: "1025"
+      EMAIL_USER: test
+      EMAIL_PASS: test
+      EMAIL_FROM: "Nerla <noreply@nerla.local>"
+    ports:
+      - "127.0.0.1:5000:5000"
+    restart: "no"

@@ -1,0 +1,95 @@
+# Dependencies
+node_modules/
+.yarn/install-state.gz
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Environment variables
+.env
+.env.local
+
+# Generated config with secrets (templates are tracked instead)
+garage.toml
+livekit.yaml
+# Files for NAME_FILE secrets, which the containers see in /run/secrets
+secrets/*
+!secrets/.gitkeep
+# Support bundles from ./nerla support-bundle
+nerla-support-*.tar.gz
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Build outputs
+dist/
+build/
+out/
+.next/
+*.tsbuildinfo
+
+# Desktop app builds
+desktop/src-tauri/target/
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.code-workspace
+
+# OS files
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+logs/
+combined.log
+error.log
+
+# Testing
+coverage/
+.nyc_output/
+e2e/test-results/
+e2e/playwright-report/
+e2e/.auth/
+e2e/.run/
+website/dist-e2e/
+.stryker-tmp/
+server/reports/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Rust
+**/*.rs.bk
+**/target/
+
+# Build artifacts
+*.exe
+*.msi
+*.dmg
+*.app
+
+# Screenshots and local tooling
+website/.screenshots/
+.superpowers/
+.impeccable/config.local.json
+
+# Install backups hold the database, files and secrets
+backups/
+
+# Local agent settings
+.claude/settings.local.json

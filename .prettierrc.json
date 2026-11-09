@@ -1,0 +1,7 @@
+{
+  "semi": false,
+  "printWidth": 140,
+  "plugins": ["prettier-plugin-tailwindcss"],
+  "tailwindStylesheet": "./website/src/app/globals.css",
+  "tailwindFunctions": ["cn", "cva"]
+}

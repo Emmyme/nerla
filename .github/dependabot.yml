@@ -1,0 +1,21 @@
+# Security updates only. A limit of 0 turns off version updates, and security updates still open
+# once "Dependabot security updates" is on in the repository settings
+# Docker has no entry, the weekly container scan in ci.yml is the signal for aging base images
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: build
+      include: scope
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: build
+      include: scope

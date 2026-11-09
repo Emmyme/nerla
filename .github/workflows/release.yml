@@ -1,0 +1,309 @@
+name: Release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build and check the images without pushing, signing or releasing. Run it on a tag with this off to publish
+        type: boolean
+        default: true
+  pull_request:
+    paths: [.github/workflows/release.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  # Only real releases queue together, so a dry run never replaces a waiting release
+  group: ${{ (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run)) && 'release' || format('release-dry-{0}', github.run_id) }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # A tag push is a real release. A manual run is one only when dry_run is off, and a pull request never is
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      dry: ${{ steps.plan.outputs.dry }}
+      owner: ${{ steps.plan.outputs.owner }}
+    steps:
+      - id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          DRY_INPUT: ${{ inputs.dry_run }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          dry=true
+          if [ "$EVENT" = push ] || { [ "$EVENT" = workflow_dispatch ] && [ "$DRY_INPUT" = false ]; }; then
+            dry=false
+          fi
+          if [ "$dry" = false ] && [[ "$GITHUB_REF" != refs/tags/v* ]]; then
+            echo "A release needs a vX.Y.Z tag, and this run is on $GITHUB_REF."
+            exit 1
+          fi
+          echo "dry=$dry" >> "$GITHUB_OUTPUT"
+          # Docker rejects upper-case image names
+          echo "owner=${OWNER,,}" >> "$GITHUB_OUTPUT"
+
+  images:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: server
+            file: server/Dockerfile
+          - name: web
+            file: proxy/Dockerfile
+    env:
+      DRY: ${{ needs.plan.outputs.dry }}
+      IMAGE: ghcr.io/${{ needs.plan.outputs.owner }}/nerla-${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      # The server's arm64 build is loaded and run before anything is published
+      - name: Build the arm64 server image
+        if: matrix.name == 'server'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: server/Dockerfile
+          platforms: linux/arm64
+          load: true
+          tags: nerla-server:arm64-check
+          provenance: false
+          sbom: false
+          cache-from: type=gha,scope=release-server
+          cache-to: type=gha,scope=release-server-arm64,mode=max
+      - name: Check the image runs as arm64
+        if: matrix.name == 'server'
+        run: test "$(docker run --rm --platform linux/arm64 nerla-server:arm64-check node -p process.arch)" = arm64
+      # Same boot as the CI boot job, with a longer wait because arm64 runs under QEMU
+      - name: Boot the arm64 server
+        if: matrix.name == 'server'
+        run: |
+          pass="$(openssl rand -hex 16)"
+          docker run -d --name pg --network host -e POSTGRES_PASSWORD="$pass" \
+            postgres:15-alpine@sha256:fceb6f86328c36f2438fae3b851b0cc57c4a7e69a58c866d9ce24281f2cf0c9c
+          until docker exec pg pg_isready -h 127.0.0.1 -U postgres; do sleep 1; done
+          docker run -d --name nerla-boot --platform linux/arm64 --network host \
+            -e DATABASE_URL="postgresql://postgres:$pass@localhost:5432/postgres" \
+            -e DB_SSL=false \
+            -e JWT_SECRET="$(openssl rand -hex 32)" \
+            -e LIVEKIT_API_SECRET="$(openssl rand -hex 32)" \
+            nerla-server:arm64-check
+          deadline=$((SECONDS + 240))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            if [ "$(curl -s --max-time 2 -o /dev/null -w '%{http_code}' http://localhost:5000/health)" = 200 ]; then
+              echo "The arm64 server answered /health after $SECONDS seconds"
+              exit 0
+            fi
+            if [ "$(docker inspect -f '{{.State.Running}}' nerla-boot)" != true ]; then
+              echo "The arm64 server stopped before it answered /health"
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "The arm64 server did not answer /health with 200 within 240 seconds"
+          exit 1
+      - name: Arm64 server logs
+        if: matrix.name == 'server' && failure()
+        run: docker logs nerla-boot
+      - name: Log in to GHCR
+        if: env.DRY == 'false'
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern=v{{version}}
+            type=semver,pattern=v{{major}}.{{minor}}
+            type=semver,pattern=v{{major}}
+      - id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          platforms: linux/amd64,linux/arm64
+          push: ${{ env.DRY == 'false' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          sbom: true
+          provenance: mode=max
+          cache-from: type=gha,scope=release-${{ matrix.name }}
+          cache-to: type=gha,scope=release-${{ matrix.name }},mode=max
+      - name: Install cosign
+        if: env.DRY == 'false'
+        uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+      # The digest covers every tag of the image
+      - name: Sign the image
+        if: env.DRY == 'false'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "$IMAGE@$DIGEST"
+
+  create-release:
+    if: needs.plan.outputs.dry == 'false'
+    needs: [plan, images]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # A draft, so the desktop job can add its installers before it publishes
+      - name: Create the draft release
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          previous="$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || true)"
+          node scripts/release-notes.mjs "$previous" "$TAG" > notes.md
+          gh release create "$TAG" --draft --title "$TAG" --notes-file notes.md
+
+  # In a dry run this builds and keeps the installers as workflow artifacts. A release also signs the updates
+  desktop:
+    needs: [plan, create-release]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && (needs.plan.outputs.dry == 'true' || needs.create-release.result == 'success') }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows
+            os: windows-latest
+            args: ""
+          - name: macos-arm64
+            os: macos-latest
+            args: --target aarch64-apple-darwin
+            target: aarch64-apple-darwin
+          - name: macos-x64
+            os: macos-latest
+            args: --target x86_64-apple-darwin
+            target: x86_64-apple-darwin
+          - name: linux
+            os: ubuntu-22.04
+            args: ""
+    env:
+      DRY: ${{ needs.plan.outputs.dry }}
+      TAG: ${{ needs.create-release.outputs.tag }}
+      UPDATER_PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+      - run: npm i -g corepack@0.36.0 && corepack enable
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+          cache: yarn
+      - run: yarn install --immutable
+      - name: Install the Tauri Linux packages
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl file libayatana-appindicator3-dev librsvg2-dev libssl-dev libwebkit2gtk-4.1-dev libxdo-dev wget
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: desktop/src-tauri
+      # A release takes its version from the tag and must sign. A manual dry run signs only when it has the key, and a pull request never signs
+      - name: Write the build config
+        env:
+          HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          sign=false
+          if [ "$DRY" = false ] || { [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ "$HAS_KEY" = true ]; }; then sign=true; fi
+          if [ "$sign" = true ] && [ -z "$UPDATER_PUBKEY" ]; then
+            echo "The repo variable TAURI_UPDATER_PUBKEY is empty, so the updater has no key to check updates against."
+            exit 1
+          fi
+          jq -n --arg version "${TAG#v}" --arg pubkey "$UPDATER_PUBKEY" --arg repo "$GITHUB_REPOSITORY" --argjson dry "$DRY" --argjson sign "$sign" '
+            (if $dry then {} else {version: $version} end)
+            + (if $sign then {bundle: {createUpdaterArtifacts: true}, plugins: {updater: {pubkey: $pubkey, endpoints: ["https://github.com/\($repo)/releases/latest/download/latest.json"]}}} else {} end)
+          ' > desktop/tauri-release.json
+      - name: Find the draft release
+        if: env.DRY == 'false'
+        id: draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: echo "id=$(gh release view "$TAG" --json databaseId --jq .databaseId)" >> "$GITHUB_OUTPUT"
+      - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # action-v0.6.2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ github.event_name != 'pull_request' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
+        with:
+          projectPath: desktop
+          releaseId: ${{ steps.draft.outputs.id }}
+          includeUpdaterJson: ${{ env.DRY == 'false' }}
+          args: ${{ matrix.args }} --config tauri-release.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: env.DRY == 'true'
+        with:
+          name: desktop-${{ matrix.name }}
+          path: desktop/src-tauri/target/**/release/bundle/**
+          retention-days: 7
+
+  publish:
+    if: needs.plan.outputs.dry == 'false'
+    needs: [plan, create-release, desktop]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Publish the release
+        env:
+          TAG: ${{ needs.create-release.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        # The four desktop legs merge latest.json at the same time, so one can overwrite another's platform
+        run: |
+          if gh release download "$TAG" -p latest.json -O latest.json; then
+            missing="$(jq -r --arg version "${TAG#v}" '
+              [("windows-x86_64", "darwin-aarch64", "darwin-x86_64", "linux-x86_64") as $p | select((.platforms // {}) | has($p) | not) | $p]
+              + (if .version == $version then [] else ["the version \($version)"] end)
+              | join(", ")' latest.json)" || missing="valid JSON"
+          else
+            missing="the file itself"
+          fi
+          if [ -n "$missing" ]; then
+            echo "The release's latest.json is missing $missing, so the release stays an unpublished draft. Re-run the failed desktop leg, and this check runs again after it."
+            exit 1
+          fi
+          gh release edit "$TAG" --draft=false
