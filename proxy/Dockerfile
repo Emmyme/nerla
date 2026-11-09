@@ -2,7 +2,8 @@
 
 # Stage 1: Dependencies
 # Node 25+ no longer bundles Corepack, so each Node stage installs a pinned one for Yarn
-FROM node:26.13.0-alpine@sha256:8996bb5821d62a8fd9bb27c1cb07462f3fdce6e47d640c6a881ead0b064ce216 AS deps
+# The website build is the same on every platform, so the Node stages run natively and never under arm64 emulation
+FROM --platform=$BUILDPLATFORM node:26.13.0-alpine@sha256:8996bb5821d62a8fd9bb27c1cb07462f3fdce6e47d640c6a881ead0b064ce216 AS deps
 RUN npm i -g corepack@0.36.0 && corepack enable
 WORKDIR /app
 
@@ -14,7 +15,7 @@ RUN corepack prepare --activate
 RUN yarn install
 
 # Stage 2: Builder
-FROM node:26.13.0-alpine@sha256:8996bb5821d62a8fd9bb27c1cb07462f3fdce6e47d640c6a881ead0b064ce216 AS builder
+FROM --platform=$BUILDPLATFORM node:26.13.0-alpine@sha256:8996bb5821d62a8fd9bb27c1cb07462f3fdce6e47d640c6a881ead0b064ce216 AS builder
 RUN npm i -g corepack@0.36.0 && corepack enable
 WORKDIR /app
 
