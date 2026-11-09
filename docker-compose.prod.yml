@@ -46,7 +46,7 @@ services:
     # These are media ports, already encrypted by WebRTC itself.
     ports:
       - "7881:7881/tcp"
-      - "50000-60000:50000-60000/udp"
+      - "7882:7882/udp"
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true

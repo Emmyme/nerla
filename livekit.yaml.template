@@ -2,7 +2,6 @@ port: 7880
 keys:
   {{LIVEKIT_API_KEY}}: {{LIVEKIT_API_SECRET}}
 rtc:
-  port_range_start: 50000
-  port_range_end: 60000
+  # The UDP port is set by --udp-port in docker-compose.yml
   tcp_port: 7881
   use_external_ip: true

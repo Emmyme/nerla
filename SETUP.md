@@ -14,7 +14,7 @@ This guide covers everything about running your own Nerla: what you need, instal
 1. **A Linux server**, such as a small VPS from Hetzner, DigitalOcean, Vultr or Linode. 2 GB of RAM and 10 GB of free disk are recommended, and 1 or 2 CPUs are enough for a small team. Setup warns when the server has less.
 2. **A domain name**, such as `nerla.example.com`, whose DNS A record you can point at the server. Without one, Nerla can run on the server's IP address with a certificate of its own, see [HTTPS and certificates](#https-and-certificates).
 3. **Docker** with the compose plugin, and `git`.
-4. **These ports open to the internet**: 80 and 443 for the website, 7880/tcp for call signalling, and 7881/tcp and 50000 to 60000/udp for call audio and video. Setup opens them in UFW for you when UFW is installed. Ports 80 and 443 must be free, so stop any web server that already uses them, often with `sudo systemctl disable --now apache2`. If you want to keep a proxy of your own on 80 and 443, see [Running behind your own proxy](#running-behind-your-own-proxy).
+4. **These ports open to the internet**: 80 and 443 for the website, 7880/tcp for call signalling, and 7881/tcp and 7882/udp for call audio and video. Setup opens them in UFW for you when UFW is installed. Ports 80 and 443 must be free, so stop any web server that already uses them, often with `sudo systemctl disable --now apache2`. If you want to keep a proxy of your own on 80 and 443, see [Running behind your own proxy](#running-behind-your-own-proxy).
 5. **About 15 minutes.**
 
 ### What gets installed
@@ -480,7 +480,7 @@ Start with `./nerla doctor`. It checks the site from the outside, then runs the 
 |--------------|------------|
 | No HTTPS certificate | `./nerla logs web` says why. Check that your domain's DNS A record points at the server and port 80 is open. The web proxy keeps trying on its own, and `./nerla restart web` makes it try right away |
 | The server won't start | `./nerla logs server` shows a line that starts with `FATAL:`. Find it under [Start messages](#start-messages) |
-| Calls don't connect | `LIVEKIT_PUBLIC_URL` must be `wss://<your domain>:7880`, and ports 7880/tcp, 7881/tcp and 50000 to 60000/udp must be open. Port 7880 is served by the web proxy, which handles TLS for LiveKit, so the certificate must exist |
+| Calls don't connect | `LIVEKIT_PUBLIC_URL` must be `wss://<your domain>:7880`, and ports 7880/tcp, 7881/tcp and 7882/udp must be open. Port 7880 is served by the web proxy, which handles TLS for LiveKit, so the certificate must exist |
 | Setup stops because port 80 or 443 is in use | Another web server holds it. Stop it, often with `sudo systemctl disable --now apache2`, or [run behind your own proxy](#running-behind-your-own-proxy) |
 | A feature breaks in the browser, such as fonts on a board | It may be the Content-Security-Policy in `proxy/Caddyfile`. Relax the directive in question, then run `./nerla build web` and `./nerla restart web` |
 | Is everything running? | `./nerla status` |

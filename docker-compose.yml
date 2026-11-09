@@ -44,7 +44,9 @@ services:
   livekit:
     image: livekit/livekit-server:v1.13.1@sha256:2c6869d2d5ff6c9c0166f47be1c92dad6928bfecfa5e4060a6ece48db8accfa3
     container_name: nerla-livekit
-    command: --config /etc/livekit.yaml
+    # All call media shares one UDP port. Publishing a port range makes Docker map every port one by one, which takes
+    # minutes and, with its userland proxy, a process per port. The flag wins over any range in an older livekit.yaml
+    command: --config /etc/livekit.yaml --udp-port 7882
     volumes:
       - ./livekit.yaml:/etc/livekit.yaml:ro
     environment:

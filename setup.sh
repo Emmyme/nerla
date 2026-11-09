@@ -220,7 +220,7 @@ if command -v ufw &> /dev/null; then
     ufw allow 443/tcp  comment "HTTPS"       > /dev/null 2>&1 || true
     ufw allow 7880/tcp comment "LiveKit WSS (web)" > /dev/null 2>&1 || true
     ufw allow 7881/tcp comment "LiveKit TCP" > /dev/null 2>&1 || true
-    ufw allow 50000:60000/udp comment "LiveKit RTC" > /dev/null 2>&1 || true
+    ufw allow 7882/udp comment "LiveKit RTC" > /dev/null 2>&1 || true
 
     if ! ufw status | grep -q "Status: active"; then
         echo "  Enabling UFW (SSH is allowed)..."
@@ -229,7 +229,7 @@ if command -v ufw &> /dev/null; then
     echo "  Firewall configured."
 else
     echo "  UFW not found, skipping firewall configuration."
-    echo "  Make sure ports 80, 443, 7880, 7881, and 50000-60000/udp are open."
+    echo "  Make sure ports 80, 443, 7880, 7881, and 7882/udp are open."
 fi
 echo ""
 
