@@ -1,6 +1,7 @@
 import { isTauri } from "@tauri-apps/api/core"
 import { toast } from "sonner"
 import type { ChatKind } from "@/lib/api/chat"
+import { webOrigin } from "@/lib/serverUrl"
 
 const NORMAL = { width: 1040, height: 700 }
 const MINI = { width: 380, height: 240, margin: 16, taskbar: 48 }
@@ -60,7 +61,7 @@ export function callChat(search: URLSearchParams, roomId: string, me: string | n
 
 /** The link guests outside the workspace join through, by way of the lobby */
 export function joinLink(roomName: string): string {
-  return `${window.location.origin}/join/${roomName}`
+  return `${webOrigin()}/join/${roomName}`
 }
 
 /** Room names compare without case, since scheduled rooms are lowercased by the server */

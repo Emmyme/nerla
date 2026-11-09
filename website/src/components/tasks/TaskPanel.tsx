@@ -12,7 +12,7 @@ import {
 } from "react"
 import { Link as RouterLink, useNavigate } from "react-router"
 import { toast } from "sonner"
-import { appPath } from "@/lib/appPath"
+import { webOrigin } from "@/lib/serverUrl"
 import { AttachMenu } from "@/components/files/AttachMenu"
 import { DraftChips } from "@/components/files/DraftChips"
 import { docRoute } from "@/components/files/fileKinds"
@@ -105,7 +105,7 @@ function openedByKeyboard(opener: Element | null): boolean {
 
 function taskLink(task: Task): string {
   const path = task.project ? `/project/${task.project.slug}?task=${task.id}` : `/?task=${task.id}`
-  return `${window.location.origin}${appPath(path)}`
+  return `${webOrigin()}${path}`
 }
 
 export function TaskPanel(props: TaskPanelProps) {

@@ -1,5 +1,24 @@
-import { describe, expect, it } from "vitest"
-import { callChat, dmRoom, meetingPath } from "./meetingWindow"
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it, vi } from "vitest"
+
+const tauri = vi.hoisted(() => ({ value: false }))
+vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => tauri.value }))
+
+import { callChat, dmRoom, joinLink, meetingPath } from "./meetingWindow"
+
+afterEach(() => {
+  tauri.value = false
+  localStorage.clear()
+})
+
+describe("joinLink", () => {
+  it("uses the page's origin in a browser and the connected server in the desktop app", () => {
+    expect(joinLink("meeting-1")).toBe(`${window.location.origin}/join/meeting-1`)
+    tauri.value = true
+    localStorage.setItem("nerla_server_url", "https://nerla.example.com")
+    expect(joinLink("meeting-1")).toBe("https://nerla.example.com/join/meeting-1")
+  })
+})
 
 const A = "a0000000-0000-4000-8000-000000000001"
 const B = "B0000000-0000-4000-8000-000000000002"

@@ -108,6 +108,12 @@ export function getServerUrlSync(): string {
   return builtInUrl()
 }
 
+/** Where the website lives, for links that are shared with people. The desktop app's own origin is tauri.localhost,
+ * so it uses the server it's connected to, which serves the website too */
+export function webOrigin(): string {
+  return isTauri() ? getServerUrlSync() : window.location.origin
+}
+
 export function getApiBaseUrl(): string {
   return `${getServerUrlSync()}/api`
 }
