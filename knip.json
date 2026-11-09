@@ -7,7 +7,8 @@
     },
     "server": {
       "entry": ["src/scripts/*.ts", "scripts/**/*.ts", "vitest.unit.config.ts"],
-      "project": ["src/**/*.ts", "scripts/**/*.ts"]
+      "project": ["src/**/*.ts", "scripts/**/*.ts"],
+      "drizzle": false
     },
     "website": {
       "entry": ["postcss.config.mjs", "public/theme-init.js"],
@@ -15,6 +16,8 @@
       "ignoreDependencies": ["tailwindcss-animate", "@tailwindcss/postcss", "tailwindcss"]
     },
     "e2e": {
+      "entry": ["playwright.config.ts", "auth.setup.ts", "journeys/**/*.spec.ts"],
+      "playwright": false,
       "ignoreDependencies": ["vite", "@fastify/cookie"]
     }
   }
