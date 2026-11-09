@@ -2,7 +2,7 @@
 
 # Stage 1: Dependencies
 # Node 25+ no longer bundles Corepack, so each Node stage installs a pinned one for Yarn
-FROM node:26.12.1-alpine@sha256:40cd011b55415bc894e45b02fdd5a5dfde056921b7d23a64c74f80497af48797 AS deps
+FROM node:26.13.0-alpine@sha256:8996bb5821d62a8fd9bb27c1cb07462f3fdce6e47d640c6a881ead0b064ce216 AS deps
 RUN npm i -g corepack@0.36.0 && corepack enable
 WORKDIR /app
 
@@ -14,7 +14,7 @@ RUN corepack prepare --activate
 RUN yarn install
 
 # Stage 2: Builder
-FROM node:26.12.1-alpine@sha256:40cd011b55415bc894e45b02fdd5a5dfde056921b7d23a64c74f80497af48797 AS builder
+FROM node:26.13.0-alpine@sha256:8996bb5821d62a8fd9bb27c1cb07462f3fdce6e47d640c6a881ead0b064ce216 AS builder
 RUN npm i -g corepack@0.36.0 && corepack enable
 WORKDIR /app
 
@@ -30,8 +30,9 @@ RUN yarn workspace website build
 
 # Stage 3: Caddy, as its own user. The compose file lets that user bind ports 80 and 443, so the binary's own
 # capability goes, as no-new-privileges refuses to run a binary that asks for one. Nothing here uses the image's curl
-FROM caddy:2.11.8-alpine@sha256:f6228111e5fafa1a5238258d0858e103f10599b8d1659a146e7726681a002bb9
-RUN setcap -r /usr/bin/caddy && apk del --no-cache curl && adduser -D -H -u 1002 caddy && chown -R caddy:caddy /data /config
+FROM caddy:2.11.9-alpine@sha256:0bbb055bda6793c999bde78b1b5ce3e89f829fb031af2cf50056ea1246559fee
+# shortcut: zlib is upgraded past the base for CVE-2026-4738, drop the upgrade once the pinned base ships zlib 1.4
+RUN apk upgrade --no-cache zlib && setcap -r /usr/bin/caddy && apk del --no-cache curl && adduser -D -H -u 1002 caddy && chown -R caddy:caddy /data /config
 COPY proxy/Caddyfile /etc/caddy/Caddyfile
 COPY --from=builder /app/website/dist /srv
 USER caddy

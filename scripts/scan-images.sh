@@ -8,7 +8,7 @@
 #   scripts/scan-images.sh                      # build + scan server & web, fail on HIGH+
 #   SEVERITY=critical scripts/scan-images.sh    # only fail on CRITICAL
 #   SKIP_BUILD=1 scripts/scan-images.sh         # scan already-built images (no rebuild)
-#   scripts/scan-images.sh caddy:2.11.8-alpine  # scan a specific image instead
+#   scripts/scan-images.sh caddy:2.11.9-alpine  # scan a specific image instead
 #
 set -euo pipefail
 
