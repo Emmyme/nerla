@@ -55,6 +55,7 @@ export const signupBodySchema = z.object({
   firstName: z.string().max(255).optional(),
   lastName: z.string().max(255).optional(),
   organizationName: z.string().min(1).max(255).trim(),
+  setupCode: z.string().trim().max(200).optional(),
 })
 
 export const signinBodySchema = z.object({

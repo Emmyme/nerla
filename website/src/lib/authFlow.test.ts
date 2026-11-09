@@ -102,7 +102,8 @@ describe("busy server", () => {
 
   it("treats a 429 probe as reachable, never as a server to reconnect", () => {
     expect(probeOutcome(429, "5", null)).toEqual({ ok: false, busy: true, retryMs: 5_000 })
-    expect(probeOutcome(200, null, { needsSetup: false })).toEqual({ ok: true, needsSetup: false })
+    expect(probeOutcome(200, null, { needsSetup: false })).toEqual({ ok: true, needsSetup: false, setupCode: false })
+    expect(probeOutcome(200, null, { needsSetup: true, setupCode: true })).toEqual({ ok: true, needsSetup: true, setupCode: true })
     expect(probeOutcome(503, null, null)).toEqual({ ok: false, reason: "Server returned HTTP 503" })
     expect(probeOutcome(200, null, {})).toMatchObject({ ok: false, reason: expect.any(String) })
   })

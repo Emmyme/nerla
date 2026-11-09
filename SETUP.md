@@ -58,7 +58,7 @@ Setup asks for your domain (or the server's IP address), an optional email for L
 - gets a free HTTPS certificate from Let's Encrypt, which the web proxy renews on its own
 - opens the firewall for the ports above, if UFW is installed
 - schedules a nightly backup at 02:00
-- checks the site from the outside and tells you what failed, if anything
+- checks the site through its public address and tells you what failed, if anything. The check runs on the server itself, so it can't prove that other networks reach it, that calls connect or that email arrives. [First sign-in](#first-sign-in) lists what to try yourself
 
 Setup is safe to run again. It keeps your settings and fills in only what is missing.
 
@@ -67,6 +67,15 @@ To build from source instead of downloading release images, set `NERLA_BUILD=sou
 ## First sign-in
 
 Open `https://your-domain` and create an account. The first account becomes the admin. Nobody else can sign up on their own, everyone else joins through an invite.
+
+The form asks for a **setup code**, which setup prints when it finishes and keeps as `SETUP_TOKEN` in `.env`. Only someone with that code can become the admin, so a stranger who finds the address first can't claim the server. Once the admin exists the code is never asked for again. An install started without setup has no code, so create its admin account straight away.
+
+Then try what setup can't check from the server itself:
+
+- open the site from another network, such as a phone on mobile data
+- make a call between two devices on different networks, with camera and screen sharing
+- send an invite or a password reset, and check that the email arrives
+- upload a file and open it again
 
 Admins find these pages under **Settings**:
 
@@ -139,11 +148,11 @@ git checkout <previous commit>
 ./nerla start
 ```
 
-On a source install, run `./nerla build` before `./nerla start`. That runs the old version on the data as it is now. A database update that failed keeps nothing, so this is usually all you need. Only if the data itself must go back to how it was before the update, also run `./nerla restore <backup>` with the backup the update made, which it printed too. A restore alone is not a way back, since it keeps the new version, which runs the same database update again. Once a fixed version is out, run `git checkout main` and `./nerla update`.
+On a source install, run `./nerla build` before `./nerla start`. That runs the old version on the data as it is now. Most database updates that fail keep nothing, so this is usually all you need. One that runs outside a transaction can leave part of itself in place, and the server log says so. In that case, or if the data itself must go back to how it was before the update, also run `./nerla restore <backup>` with the backup the update made, which it printed too. A restore alone is not a way back, since it keeps the new version, which runs the same database update again. Once a fixed version is out, run `git checkout main` and `./nerla update`.
 
 ### Backups
 
-`./nerla backup` backs up right now. Setup also schedules one every night at 02:00, and `./nerla update` backs up before it changes anything. Each backup is a folder in `backups/` named by its time, kept for 30 days. `BACKUP_DIR` in `.env` saves them somewhere else and `BACKUP_RETENTION_DAYS` keeps them longer or shorter.
+`./nerla backup` backs up right now. Setup also schedules one every night at 02:00, and `./nerla update` backs up before it changes anything. Each backup is a folder in `backups/` named by its time, kept for 30 days. `BACKUP_DIR` in `.env` saves them somewhere else and `BACKUP_RETENTION_DAYS` keeps them longer or shorter. Give `BACKUP_DIR` a folder of its own. Old backups are removed by their timestamp names, and other folders there are left alone.
 
 A backup holds:
 
@@ -369,7 +378,7 @@ A count needs the nearest proxy on a private network, as the bundled one is. Oth
 
 Nerla runs fine without email. Invites always give you a link to send yourself.
 
-With a mail server set up, invites and password resets are emailed too. Any SMTP server works, such as Gmail, Outlook, AWS SES or your own. Setup asks for one, or set these in `.env` and run `./nerla restart server`:
+With a mail server set up, invites and password resets are emailed too. Nerla signs in to an SMTP server with a username and a password or app password, such as Gmail with an app password, AWS SES, Zimbra or your own. Services that only allow OAuth sign-in, such as personal Outlook.com accounts, don't work, and neither does a relay with no sign-in. Setup asks for one, or set these in `.env` and run `./nerla restart server`:
 
 ```bash
 EMAIL_HOST=smtp.example.com
@@ -379,7 +388,9 @@ EMAIL_PASS=your-app-password
 EMAIL_FROM=Nerla <nerla@example.com>
 ```
 
-Email counts as set up once `EMAIL_USER` and `EMAIL_PASS` are both set. The setup check's **Email** item signs in to the mail server and says whether that works.
+Put the password in single quotes if it contains a `$`, such as `EMAIL_PASS='pa$$word'`, or Docker reads the `$` as the start of a variable.
+
+Email counts as set up once `EMAIL_USER` and `EMAIL_PASS` are both set. The setup check's **Email** item signs in to the mail server and says whether that works. Signing in doesn't prove delivery, so send yourself a password reset and check that it arrives.
 
 Emails are sent in the background and tried again while the mail server is down. A failed email shows on its invitation and on the setup check under **Background jobs**.
 

@@ -195,8 +195,10 @@ echo ""
 echo "This backup holds the install's secrets (its .env and garage.toml), so only its owner can read it."
 echo "Keep every copy of it as private as the server itself."
 
-# Prune old backups, but never the one just written.
+# Prune old backups, but never the one just written, and only folders named like a backup, so anything else kept in
+# BACKUP_DIR survives
 prune_err=$(find "$BACKUP_DIR" -maxdepth 1 -mindepth 1 -type d -mtime "+$RETENTION_DAYS" \
+    -name '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9][0-9][0-9]' \
     -not -path "$DEST" -exec rm -rf {} + 2>&1) ||
     echo "Couldn't remove old backups in $BACKUP_DIR: $(printf %s "$prune_err" | tr '\n' ' '). Free the space or fix the folder's owner." >&2
 

@@ -32,6 +32,7 @@ export default function SignInPage() {
   const [mode, setMode] = useState<Mode>("signin")
   const [serverUrl, setServerUrl] = useState("")
   const [email, setEmail] = useState(linked?.email ?? "")
+  const [setupCode, setSetupCode] = useState(false)
   const [attempt, setAttempt] = useState<{ url: string; fromLink: boolean } | null>(null)
   const retry = useRef<ReturnType<typeof setTimeout>>()
   const view = screen.kind === "ready" ? mode : screen.kind
@@ -56,6 +57,7 @@ export default function SignInPage() {
       setServerUrl(url)
       if (result.ok) {
         setMode((fromLink && linked?.mode) || (result.needsSetup ? "setup" : "signin"))
+        setSetupCode(result.setupCode)
         setScreen({ kind: "ready" })
       } else if (result.busy) {
         // Busy is still reachable, so it waits and asks again rather than offering another server
@@ -143,7 +145,7 @@ export default function SignInPage() {
   return (
     <AuthLayout footer={footer}>
       {mode === "setup" ? (
-        <SetupForm next={next} />
+        <SetupForm next={next} askCode={setupCode} />
       ) : (mode === "activate" || mode === "reset") && linked ? (
         <LinkedPasswordForm flow={linked} next={next} onSignIn={toSignIn} />
       ) : mode === "forgot" ? (

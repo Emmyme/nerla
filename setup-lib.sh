@@ -38,6 +38,9 @@ preflight_checks() {
         # The web proxy needs 80/443, unless a separate proxy holds them. A stray Apache is the usual cause on a fresh VPS.
         local port holder ports="80 443"
         behind_own_proxy && ports=""
+        # A rerun finds Nerla's own web proxy on them, which is no conflict
+        [ -n "$(docker ps -q --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME:-nerla}" \
+            --filter label=com.docker.compose.service=web --filter status=running 2>/dev/null)" ] && ports=""
         for port in $ports; do
             if port_in_use "$port"; then
                 holder="$(port_holder "$port")"
@@ -209,7 +212,8 @@ wait_for_dns() {
 }
 
 # ---------------------------------------------------------------------------
-# Post-install verification: prove the site works from the outside.
+# Post-install verification: the site answers through its public address. It runs on this server, so it proves
+# routing and the certificate, not that other networks reach it, calls or email delivery.
 # With internal as the third argument the certificate comes from the server's own authority, which only machines
 # that added it trust, so it is not checked
 # ---------------------------------------------------------------------------
@@ -465,7 +469,12 @@ prompt_email() {
             env_set EMAIL_HOST "${_smtp_host}"
             env_set EMAIL_PORT "${_smtp_port:-587}"
             env_set EMAIL_USER "${_smtp_user}"
-            env_set EMAIL_PASS "${_smtp_pass}"
+            # Docker Compose reads $ in .env as a variable, so the password is single-quoted, or its $ doubled when
+            # it holds a quote itself
+            case "$_smtp_pass" in
+                *\'*) env_set EMAIL_PASS "${_smtp_pass//\$/\$\$}" ;;
+                *) env_set EMAIL_PASS "'${_smtp_pass}'" ;;
+            esac
             env_set EMAIL_FROM "${_smtp_from:-Nerla <${_smtp_user}>}"
             echo "  Email configured."
         else

@@ -30,6 +30,9 @@ const DUMMY_HASH = "$2a$12$Sl9CqyB1bblAOhq3dpRXvux5u987rs6GhO0e41JWcjSJfWoYkZD12
 const SIGN_OUT_FAILED = "Couldn't sign you out everywhere. Try again."
 const INVITE_INVALID = { error: "This invite link isn't valid any more. Ask an admin for a new one." }
 const REGISTRATION_CLOSED = { error: "Registration is closed. Ask your admin for an invite." }
+const SETUP_CODE_WRONG = { error: "That setup code doesn't match. Setup printed it at the end, and it's SETUP_TOKEN in the server's .env." }
+/** Set by setup.sh on a server install, so only whoever ran setup can claim the first admin account. Empty means no code */
+const setupToken = () => process.env.SETUP_TOKEN?.trim() ?? ""
 const RESET_INVALID = { error: "Invalid or expired reset token" }
 const RESET_SENT = "If that email exists, a reset link has been generated."
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000
@@ -138,7 +141,8 @@ async function authRoutes(fastify: FastifyInstance) {
   }
   fastify.get("/setup-status", async (_request, reply) => {
     const [{ value: userCount }] = await db.select({ value: count() }).from(users)
-    return reply.send({ needsSetup: userCount === 0 })
+    const needsSetup = userCount === 0
+    return reply.send({ needsSetup, setupCode: needsSetup && !!setupToken() })
   })
 
   fastify.get("/me", { preHandler: [authMiddleware] }, async (request, reply) => {
@@ -201,7 +205,8 @@ async function authRoutes(fastify: FastifyInstance) {
 
       const parsed = parseBody(signupBodySchema, request.body, reply)
       if (!parsed) return
-      const { email, password, firstName, lastName, organizationName } = parsed
+      const { email, password, firstName, lastName, organizationName, setupCode } = parsed
+      if (setupToken() && !resetTokenMatches(setupCode ?? "", hashToken(setupToken()))) return reply.status(403).send(SETUP_CODE_WRONG)
 
       const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS)
 

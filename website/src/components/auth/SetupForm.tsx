@@ -3,8 +3,9 @@ import { missingRulesMessage } from "@/lib/authFlow"
 import { authPost, enterApp } from "./authSubmit"
 import { AuthHeader, ErrorText, Field, NewPasswordField, SubmitButton, useAuthTask } from "./parts"
 
-/** The first account on an empty server. It becomes the admin and names the workspace. */
-export function SetupForm({ next }: { next: string }) {
+/** The first account on an empty server. It becomes the admin and names the workspace. `askCode` when the server wants setup's code */
+export function SetupForm({ next, askCode }: { next: string; askCode: boolean }) {
+  const [setupCode, setSetupCode] = useState("")
   const [organizationName, setOrganizationName] = useState("")
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
@@ -20,13 +21,33 @@ export function SetupForm({ next }: { next: string }) {
     event.preventDefault()
     const missing = missingRulesMessage(password)
     if (missing) return fail(missing)
-    void run(async () => enterApp(await authPost("signup", { email, password, firstName, lastName, organizationName }), next))
+    void run(async () =>
+      enterApp(
+        await authPost("signup", { email, password, firstName, lastName, organizationName, ...(askCode ? { setupCode } : {}) }),
+        next,
+      ),
+    )
   }
 
   return (
     <div className="flex flex-col gap-6">
       <AuthHeader title="Create your admin account" description="This first account runs your Nerla server." />
       <form onSubmit={submit} className="flex flex-col gap-4">
+        {askCode && (
+          <Field
+            id="setupCode"
+            name="setupCode"
+            label="Setup code"
+            hint="Setup printed it when it finished. It's also SETUP_TOKEN in the server's .env."
+            required
+            maxLength={200}
+            autoComplete="off"
+            spellCheck={false}
+            errorId={errorId}
+            value={setupCode}
+            onChange={(event) => setSetupCode(event.target.value)}
+          />
+        )}
         <Field
           id="organizationName"
           name="organizationName"

@@ -13,7 +13,7 @@ set -euo pipefail
 #   6. Build and start all Docker containers
 #   7. Provision Garage storage
 #   8. Configure the firewall
-#   9. Schedule nightly backups and verify the install from outside
+#   9. Schedule nightly backups and check the install through its public address
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -81,8 +81,11 @@ env_set CLIENT_URL              "https://${DOMAIN}"
 env_set LIVEKIT_PUBLIC_URL      "wss://${DOMAIN}:7880"
 env_set NODE_ENV                "production"
 env_set DB_SSL                  "false"
-env_set TRUST_PROXY             "1"
+# One proxy (the bundled one) unless the owner already set a count or addresses for their own proxy
+case "$(env_get TRUST_PROXY)" in "" | false) env_set TRUST_PROXY "1" ;; esac
 env_set EXPOSE_RESET_TOKEN      "false"
+# The first sign-up must give this code, so only whoever ran setup can become the admin
+[ -z "$(env_get SETUP_TOKEN)" ] && env_set SETUP_TOKEN "$(gen_secret 12)"
 
 echo "  Production URLs configured for ${DOMAIN}"
 echo ""
@@ -240,7 +243,8 @@ chmod +x "${SCRIPT_DIR}/scripts/backup.sh" "${SCRIPT_DIR}/scripts/restore.sh" "$
 if crontab -l 2>/dev/null | grep -q "nerla-backup"; then
     echo "  Nightly backup already scheduled."
 else
-    (crontab -l 2>/dev/null; echo "0 2 * * * cd ${SCRIPT_DIR} && ./scripts/backup.sh >> ${SCRIPT_DIR}/backups/backup.log 2>&1 # nerla-backup") | crontab -
+    # A fresh root has no crontab, and crontab -l failing must not stop setup under pipefail
+    { crontab -l 2>/dev/null || true; echo "0 2 * * * cd ${SCRIPT_DIR} && ./scripts/backup.sh >> ${SCRIPT_DIR}/backups/backup.log 2>&1 # nerla-backup"; } | crontab -
     mkdir -p "${SCRIPT_DIR}/backups"
     echo "  Nightly backup scheduled for 02:00 (database + uploaded files)."
     echo "  Kept for 30 days in ${SCRIPT_DIR}/backups"
@@ -299,7 +303,11 @@ echo ""
 
 echo "Next step:"
 echo "  Open ${_scheme}://${DOMAIN} and create your admin account."
-echo "  The first account you create becomes the administrator."
+echo "  The first account you create becomes the administrator. It asks for this setup code:"
+echo ""
+echo "    $(env_get SETUP_TOKEN)"
+echo ""
+echo "  It's kept as SETUP_TOKEN in .env, and it's only used for that first account."
 echo ""
 
 if [ "$_verify_ok" != "true" ]; then

@@ -74,14 +74,18 @@ export function busyRetryMs(status: number, retryAfter: string | null, now = Dat
 }
 
 export type ProbeResult =
-  { ok: true; needsSetup: boolean } | { ok: false; busy: true; retryMs: number } | { ok: false; busy?: false; reason: string }
+  | { ok: true; needsSetup: boolean; setupCode: boolean }
+  | { ok: false; busy: true; retryMs: number }
+  | { ok: false; busy?: false; reason: string }
 
 /** What the setup-status probe means for the sign-in screen */
 export function probeOutcome(status: number, retryAfter: string | null, data: unknown): ProbeResult {
   const retryMs = busyRetryMs(status, retryAfter)
   if (retryMs !== null) return { ok: false, busy: true, retryMs }
   if (status < 200 || status >= 300) return { ok: false, reason: `Server returned HTTP ${status}` }
-  const needsSetup = (data as { needsSetup?: unknown } | null)?.needsSetup
+  const body = data as { needsSetup?: unknown; setupCode?: unknown } | null
+  const needsSetup = body?.needsSetup
   if (typeof needsSetup !== "boolean") return { ok: false, reason: "Server does not appear to be a Nerla instance" }
-  return { ok: true, needsSetup }
+  // Servers from before setup codes don't send one, and never ask for it
+  return { ok: true, needsSetup, setupCode: body?.setupCode === true }
 }
