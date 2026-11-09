@@ -223,7 +223,8 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "26"
-      - run: npm i -g corepack@0.36.0 && corepack enable
+      # --force replaces the yarn shims the Windows runner ships, which corepack takes over anyway
+      - run: npm i -g --force corepack@0.36.0 && corepack enable
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "26"
@@ -269,6 +270,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         with:
           projectPath: desktop
+          # The action looks for a lockfile in desktop/ and falls back to npm, but the workspace's yarn.lock is at the root
+          tauriScript: yarn tauri
           releaseId: ${{ steps.draft.outputs.id }}
           includeUpdaterJson: ${{ env.DRY == 'false' }}
           args: ${{ matrix.args }} --config tauri-release.json
