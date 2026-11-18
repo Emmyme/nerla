@@ -12,13 +12,16 @@ import { catState, WAKE_MS } from "./aiCat"
 // Filled with the background and outlined in pink, drifting up like the away cat's. Still unless the z's are allowed to move
 const Z = "sleep-z fill-background stroke-app-bubblegum-strong [paint-order:stroke] [stroke-linejoin:round] font-semibold"
 
-/** The z's keep their place on the face as it grows, `grow` being the face's size against what the z's were drawn for */
-function Zs({ grow }: { grow: number }) {
+/**
+ * The z's keep their place on the face as it grows, `grow` being the face's size against what the z's were drawn for.
+ * `low` sits them beside the face's top instead of above it, for the titlebar, which has no room above the face
+ */
+function Zs({ grow, low }: { grow: number; low: boolean }) {
   return (
     <svg
       aria-hidden="true"
       viewBox="0 0 16 16"
-      style={{ width: `${grow}rem`, height: `${grow}rem`, right: `${-0.25 * grow}rem`, top: `${-0.5 * grow}rem` }}
+      style={{ width: `${grow}rem`, height: `${grow}rem`, right: `${-0.25 * grow}rem`, top: low ? 0 : `${-0.5 * grow}rem` }}
       className="pointer-events-none absolute overflow-visible"
     >
       <text x="7" y="11" fontSize="10" strokeWidth="1.4" className={Z}>
@@ -118,7 +121,7 @@ export function AiCatButton({ titlebar = false }: { titlebar?: boolean }) {
       {running && <MotionLines size={size * 0.75} />}
       <span className={cn("relative flex", running && "motion-safe:animate-[ai-bob_1.2s_ease-in-out_infinite]")}>
         <AiFace size={size} asleep={!awake} className="transition-[filter] duration-150 group-hover:brightness-[0.94]" />
-        {!awake && <Zs grow={size / (titlebar ? 1.375 : 1.75)} />}
+        {!awake && <Zs grow={size / (titlebar ? 1.375 : 1.75)} low={titlebar} />}
       </span>
       {running && <MotionLines size={size * 0.75} right />}
     </>
