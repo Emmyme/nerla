@@ -51,12 +51,12 @@ function TabFace({ Icon, label, active, dot }: { Icon: IconComponent; label: str
     <>
       <span
         className={cn(
-          "relative flex h-7 w-12 items-center justify-center rounded-full",
+          "relative flex h-8 w-14 items-center justify-center rounded-full",
           active && "bg-current-page text-app-pistachio-ink dark:text-app-pistachio",
         )}
       >
         <Icon aria-hidden="true" className="size-5" />
-        {dot && <UnreadDot className="absolute top-0.5 right-2.5" />}
+        {dot && <UnreadDot className="absolute top-0.5 right-3.5" />}
       </span>
       <span className="max-w-full truncate px-0.5">{label}</span>
     </>
@@ -80,7 +80,7 @@ export function TabBar() {
     <nav
       aria-label="Main"
       data-region="tabbar"
-      className="fixed inset-x-0 bottom-0 z-30 h-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] border-t-[0.0625rem] border-border bg-app-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 h-[calc(var(--tabbar-h)+var(--tabbar-pad))] border-t-[0.0625rem] border-border bg-app-surface pb-(--tabbar-pad) lg:hidden"
     >
       <ul className="grid h-full grid-cols-5">
         {LINKS.map(({ tab, label, to, Icon }) => {
