@@ -1,5 +1,5 @@
 # Stage 1: Dependencies
-FROM node:26.13.0-alpine@sha256:8996bb5821d62a8fd9bb27c1cb07462f3fdce6e47d640c6a881ead0b064ce216 AS deps
+FROM node:26.13.1-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS deps
 # Node 25+ no longer bundles Corepack, so each Node stage installs a pinned one for Yarn
 RUN npm i -g corepack@0.36.0 && corepack enable
 
@@ -12,7 +12,7 @@ RUN corepack prepare --activate
 RUN yarn install
 
 # Stage 2: Builder
-FROM node:26.13.0-alpine@sha256:8996bb5821d62a8fd9bb27c1cb07462f3fdce6e47d640c6a881ead0b064ce216 AS builder
+FROM node:26.13.1-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS builder
 RUN npm i -g corepack@0.36.0 && corepack enable
 
 WORKDIR /app
@@ -31,7 +31,7 @@ WORKDIR /app/server
 RUN node ../node_modules/typescript/lib/tsc.js
 
 # Stage 3: The server's production dependencies, installed here so Yarn and its cache stay out of the runner
-FROM node:26.13.0-alpine@sha256:8996bb5821d62a8fd9bb27c1cb07462f3fdce6e47d640c6a881ead0b064ce216 AS prod-deps
+FROM node:26.13.1-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS prod-deps
 RUN npm i -g corepack@0.36.0 && corepack enable
 WORKDIR /app
 COPY package.json yarn.lock .yarnrc.yml ./
@@ -40,13 +40,13 @@ RUN corepack prepare --activate
 RUN yarn workspaces focus server --production
 
 # Stage 4: Runner (production)
-FROM node:26.13.0-alpine@sha256:8996bb5821d62a8fd9bb27c1cb07462f3fdce6e47d640c6a881ead0b064ce216 AS runner
+FROM node:26.13.1-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS runner
 
 WORKDIR /app
 
 # No package manager at runtime, and a non-root user for security
-# shortcut: zlib is upgraded past the base for CVE-2026-4738, drop the upgrade once the pinned base ships zlib 1.4
-RUN apk upgrade --no-cache zlib && \
+# shortcut: zlib and OpenSSL are upgraded past the base for CVE-2026-4738 and the OpenSSL 3.5.9-r0 CVEs, drop the upgrade once the pinned base ships zlib 1.4 and OpenSSL 3.5.9-r1
+RUN apk upgrade --no-cache zlib libssl3 libcrypto3 && \
     rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx && \
     addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nodejs
